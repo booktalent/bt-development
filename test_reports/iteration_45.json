@@ -1,0 +1,51 @@
+{
+  "summary": "Iter45 end-to-end validation of Multi-Artist Event Booking. Backend: 12/12 pytest green (batch creation, unified payment, artist privacy isolation on /bookings/mine + /bookings/{id}, /events/{id}/summary owner-only, single-artist regression, iter43+iter44 regressions). Frontend: primary flow works — suggested panel, modal, cart, remove/re-enable, unified checkout hitting /bookings/batch + /payments/batch/init+verify, success screen with Event Refs, My Events tab grouping, public recap with no PII. 2 real data-parsing bugs found that break artist NAME display (counts + IDs are correct).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "BookingFlow.jsx cartItems useMemo (L~178-197)",
+        "issue": "Primary artist NAME is blank in BookingCart sidebar AND on Step 6 success 'Artists in this Event' list. Root cause: cartItems reads `artist.stage_name` / `artist.profile_image` / `artist.category` / `artist.city` / `artist.emoji` from the TOP-LEVEL artist object, but GET /api/artists/{id} returns `{profile:{stage_name,user_id,category,city,emoji,profile_image,...}, packages, ...}` — stage_name & friends live under `.profile`. Confirmed via curl: top-level stage_name=null, profile.stage_name='Priya Sharma'. Fix: replace `artist.stage_name` → `artist.profile?.stage_name`, and similarly for profile_image, category, city, emoji. Note the SAME file already reads it correctly at L825/946 via `artist.profile.stage_name`.",
+        "selector": "[data-testid=cart-item-<primary_uid>], [data-testid=step-success]",
+        "priority": "HIGH"
+      },
+      {
+        "component": "CustomerDashboard.jsx EventsGrouped (L~472-484)",
+        "issue": "Every artist row on 'My Events' shows the fallback text 'Artist' instead of the real stage_name. Root cause: after Promise.all fetches /artists/{id}, the code extracts uid via `const uid = r.data.user_id || r.data.id` — but the response has NEITHER at top level; both live under `.profile.user_id`. So `next[undefined] = {...}` — cache is never keyed by real uid, so `artistCache[b.artist_id]` is always undefined and the row falls back to 'Artist'. Fix: `const uid = r.data.profile?.user_id || r.data.user_id || r.data.id;`. Once uid is right, the existing `r.data.stage_name || r.data.profile?.stage_name || 'Artist'` fallback will resolve correctly.",
+        "selector": "[data-testid^=event-artist-]",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter45_multi_artist_privacy.py",
+    "/app/test_reports/pytest/iter45_run.xml"
+  ],
+  "action_items": [
+    "Fix BookingFlow.jsx cartItems memo — read stage_name/category/city/emoji/profile_image via artist.profile.* not artist.*",
+    "Fix CustomerDashboard.jsx EventsGrouped fetch — resolve uid via r.data.profile?.user_id first, else the artistCache never populates and every row shows 'Artist'"
+  ],
+  "critical_code_review_comments": [
+    "Same-response-two-parsers anti-pattern repeats iter44's L103 defect: /api/artists/{id} returns a nested `profile` object, but BookingFlow L181-187 & CustomerDashboard L477 read fields off the top level. Consider a small helper `normalizeArtist(r)` that always merges `{...r.data.profile, ...r.data}` at the call site to prevent recurrence.",
+    "BookingFlow.jsx has grown to 1103 lines — over the 700-line guideline. Multi-artist cart logic (state, useMemo, submit branch, modal render) is a good candidate to split into a `useEventCart()` hook + `<BookingFlowMultiCheckout />` sub-component.",
+    "Backend privacy is spec-compliant: artist role on /bookings/mine returns only their bookings; /bookings/{sibling_id} returns 403 for other artists; /events/{id}/summary returns 403 for artists — all verified in test_iter45_multi_artist_privacy.py."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter45_multi_artist_privacy.py (new, 12 tests)"
+  ],
+  "success_rate": {
+    "backend": "100% (12/12)",
+    "frontend": "88% — full flow works and every count/state/id is correct; only artist-name display is broken in 2 places"
+  },
+  "test_credentials": "Loaded from /app/memory/test_credentials.md (customer@booktalent.com / Customer@123, priya/vortex/kavya @ Artist@123).",
+  "seed_data_creation": "Test suite creates ~7 bookings across 2036-2040 (per iter45 spec). E2E playwright created 3 bookings sharing event_id fed20ca6-1d1a-4461-82e5-1b9dd5463d64 on 2026-07-27 (Priya + Mohit Pandey + Dhiren Singh) — usable as fixtures for retest.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "After main agent fixes the two artist.profile.* parsing sites (BookingFlow.jsx cartItems memo + CustomerDashboard.jsx EventsGrouped uid resolver), retest ONLY: (1) BookingCart primary row shows 'Priya Sharma' (not blank) at [data-testid=cart-item-22c3967c-e432-41e8-bdfb-a0a54b82ee1b]; (2) Step 6 success 'Artists in this Event' list shows Priya's name (currently the primary row shows only ' · ₹30,900'); (3) Customer Dashboard My Events → [data-testid=event-group-fed20ca6-1d1a-4461-82e5-1b9dd5463d64] shows 3 rows with REAL stage_names (Priya Sharma / Mohit Pandey / Dhiren Singh) instead of 'Artist'. Backend test suite requires no changes.",
+  "rca_of_the_issue": "GET /api/artists/{id} returns { profile: { stage_name, user_id, category, city, emoji, profile_image }, packages, media, reviews }. Two frontend spots read those fields off the top-level object instead of .profile: (a) BookingFlow.jsx cartItems memo (L181-187) — silently produces blank names in primary cart row and success screen; (b) CustomerDashboard.jsx EventsGrouped (L477) — silently keys artistCache under `undefined`, so every artist row on 'My Events' shows the fallback 'Artist'. Both are 1-line fixes. Regression risk: none — third-party callers already normalize (e.g., BookingFlow L825/946 use artist.profile.stage_name correctly)."
+}

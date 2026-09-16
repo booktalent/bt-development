@@ -1,0 +1,22 @@
+{
+  "summary": "Iter 91 tested end-to-end. Backend: 18/18 pytest passing — /user/mark-welcome-seen, /onboarding/complete side-effect, /auth/me seen_welcome_at, chat access + upload as assigned manager (403 for non-assigned), and router-rename regression across /admin/*, /faqs, /search/ai, /admin/exports/*, /agency/roster, plus Iter 90/90b regressions. Frontend: OnboardingWizard × close button (data-testid=wiz-dismiss) present; wizard does NOT auto-open for onboarded artist (seen_welcome_at respected); ManagerChat renders mc-attach paperclip, mc-file-input, and mc-img-<id> bubble for uploaded image. Notification service imports agency_corp_provider_routes correctly.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iter91.py",
+    "/app/test_reports/pytest/iter91.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py exceeds 700 lines by a wide margin — consider splitting auth/media/booking modules for maintainability (pre-existing tech debt, not iter 91 scope).",
+    "chat_upload payload requires booking_id in body AND path — redundant but not blocking; consider removing from body model."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter91.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "admin@booktalent.com/Admin@123, priya@booktalent.com/Artist@123, test-mgr@booktalent.com/Manager@123, customer@booktalent.com/Customer@123",
+  "seed_data_creation": "Assigned booking 0c0c3ae8-1efe-406c-9733-76c444c406e7 to manager mgr-test-1 via mongosh so assigned-manager chat access could be tested. Uploaded a 1x1 PNG file as chat attachment via manager (mc-img bubble rendered).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "test-mgr-1 is assigned_manager on booking 0c0c3ae8-1efe-406c-9733-76c444c406e7 (customer_id=5af84d3e..., artist_id=22c3967c... i.e., priya). One iter91_test.png chat_message exists on that booking. priya's users.seen_welcome_at is set (onboarding wizard auto-open suppressed).",
+  "rca of the issue": "N/A — all features working as specified."
+}

@@ -1,0 +1,54 @@
+{
+  "summary": "Iter 33 — Retest of BookingFlow.jsx outstation fix (artist.city -> artist?.profile?.city). ALL frontend outstation UI blocks + ack gate + admin editable notice + booking snapshot verification PASS end-to-end. 16/16 UI checks green + 2/2 booking snapshots correct (is_outstation True for Delhi event, False for Mumbai event) + admin PUT/GET/UI render round-trip works.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter32_outstation.py (regression from iter32, still valid)"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "BookingFlow.jsx is now 751 lines — consider splitting into per-step subcomponents (Step1Package, Step2Schedule, Step3Details, Step4Review, Step5Payment, Step6Success). Would improve testability + reduce cognitive load. Not blocking.",
+    "The outstation-notice text and review-outstation-notice text are duplicated in JSX (lines 419-422 vs 543-546). Extract into a helper `formatOutstationNotice(template, artistCity, eventCity)` to keep them in sync if admin edits placeholder tokens.",
+    "The disable predicate on step4-next (line 560-563) inlines the same city-mismatch check used at lines 406 and 533. Extract to a memoized `isOutstation` boolean at component scope to eliminate 3 duplicated string ops (trim().toLowerCase()) per render cycle."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "100% (unchanged from iter32)", "frontend": "100% (16/16 outstation UI checks + 2/2 booking snapshot verifications + admin edit round-trip)" },
+  "test_credentials": "Admin: admin@booktalent.com/Admin@123; Customer: customer@booktalent.com/Customer@123; Artist Priya (Mumbai): priya@booktalent.com/Artist@123; Payment OTP: 123456",
+  "seed_data_creation": "Created two live bookings under customer account: BT-260717-CE27D1 (outstation Mumbai->Delhi, is_outstation=True) and BT-260717-DBB2D1 (same-city Mumbai, is_outstation=False). Also BT-260717-CE27D1's confirmation flow completed via mock OTP 123456. These live in the customer's real booking list — status 'pending_artist'. Prefixed venue/name with TEST_ for identifiability. No admin setting left mutated (custom outstation_notice was set for UI verification then restored to default).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iter 32 frontend fix is fully verified. All 5 references to artist?.profile?.city work correctly. Booking snapshots persist is_outstation, artist_city, event_city. Admin outstation_notice edit is live-editable via PUT /api/admin/settings/outstation_notice and rendered by BookingFlow on load. Two TEST_ prefixed live bookings exist in customer's list (BT-260717-CE27D1 outstation, BT-260717-DBB2D1 same-city) — leave them or clean up if concerned about pending_artist queue noise.",
+  "verified_scenarios": {
+    "step3_outstation_notice_appears_delhi": true,
+    "step3_outstation_notice_mentions_both_cities": true,
+    "step3_notice_toggles_off_when_city_becomes_mumbai": true,
+    "step3_notice_reappears_when_city_becomes_delhi_again": true,
+    "step4_review_outstation_notice_renders": true,
+    "step4_outstation_ack_checkbox_present": true,
+    "step4_next_disabled_before_ack": true,
+    "step4_next_enabled_after_ack": true,
+    "step4_next_disabled_again_after_uncheck": true,
+    "booking_fee_note_visible_step1": true,
+    "booking_fee_note_visible_step2": true,
+    "booking_fee_note_visible_step3": true,
+    "booking_fee_note_visible_step4": true,
+    "booking_fee_note_contains_not_included": true,
+    "outstation_booking_snapshot_is_outstation_true": true,
+    "outstation_booking_snapshot_artist_city_mumbai": true,
+    "outstation_booking_snapshot_event_city_delhi": true,
+    "samecity_step3_no_notice": true,
+    "samecity_step4_no_review_notice": true,
+    "samecity_step4_no_ack": true,
+    "samecity_step4_next_enabled_without_gate": true,
+    "samecity_booking_completes": true,
+    "samecity_booking_snapshot_is_outstation_false": true,
+    "admin_put_outstation_notice_returns_200": true,
+    "public_settings_get_returns_custom_value": true,
+    "booking_flow_renders_admin_custom_notice_with_placeholders_replaced": true,
+    "admin_restore_default_notice_success": true
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "summary": "Iter 30 code-quality hardening verified end-to-end. 20/20 backend pytest tests passed (Set-Cookie flags on login/register/otp_verify, cookie cleared on logout, cookie-only /auth/me works, Bearer-only /auth/me works, plus regression on concierge/homepage/rider-wallet/subscriptions/addons/travel/corporate-bulk). Playwright verified: (a) customer login writes httpOnly+Secure+SameSite=Lax cookie AND bt_token in localStorage, (b) personalized rails (rail-continue_in_city etc.) render for logged-in customer, (c) logout clears both cookie server-side and bt_token client-side, (d) corporate bulk-booking stable _key fix works — ROW-ZERO stays at row 0 and ROW-TWO correctly moves to row 1 after row-1 removal (index-key bug fixed).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Corporate → Bulk Booking artist dropdown",
+        "issue": "RoleDashboards.jsx L224 calls GET /api/artists?limit=200 which returns 404 — the real endpoint is /api/artists/search (returns {items:[]}). The Artist select in bulk booking is therefore empty. Pre-existing (not introduced by iter30) but still blocks bulk submissions from actually being created. The stable-key row fix itself works — verified via the city input.",
+        "affected_selectors": ["bulk-artist-0", "bulk-artist-1"]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter30_cookie_auth.py",
+    "/app/test_reports/pytest/iter30.xml"
+  ],
+  "action_items": [
+    "Optional: fix RoleDashboards.jsx L224 → api.get('/artists/search?limit=200').then(r => setArtists(r.data.items)) so the corporate Bulk Booking artist dropdown is actually populated. Pre-existing bug, does not block iter30 acceptance."
+  ],
+  "critical_code_review_comments": [
+    "server.py L188-201 _set_auth_cookie/_clear_auth_cookie helpers are clean and consistent. httponly=True, secure=True, samesite='lax', max_age=604800, path='/'. delete_cookie uses same path='/' — good.",
+    "server.py L145-159 get_current_user cookie fallback is correct: reads Authorization first, then falls back to request.cookies['access_token']. No dedicated dependency needed.",
+    "server.py otp_verify (L586-597) sets cookie only when user exists — correct for that endpoint's dual purpose.",
+    "frontend/src/lib/api.js: withCredentials:true + relative baseURL '/api' → cookie flows on same-origin. Bearer header still attached from localStorage for WS compat. Clean dual-auth.",
+    "frontend/src/lib/auth.jsx logout() fires api.post('/auth/logout') and clears localStorage synchronously — correct even if network fails.",
+    "RoleDashboards.jsx L216: nextRowKey.current++ with useRef is a clean monotonically-increasing per-instance key generator. Using r._key on <div key=…> is the proper fix for the index-as-key bug.",
+    "Minor: RoleDashboards.jsx L224 hits a non-existent endpoint /api/artists?limit=200 (should be /artists/search). Independent of iter30 scope but worth flagging.",
+    "Note: /api/artists?limit=200 404 shows up as a console error on the corporate dashboard — noisy but non-blocking."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter30_cookie_auth.py (new — 20 tests)"
+  ],
+  "success_rate": {"backend": "100% (20/20)", "frontend": "100% (all iter30 flows verified)"},
+  "test_credentials": "Used /app/memory/test_credentials.md. Note: corporate password is 'Corporate@123' (not 'Corp@123' as stated in the review_request). Test fixture handles both.",
+  "seed_data_creation": "None. Corporate bulk-booking test only manipulated in-page state; nothing submitted to the API.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Cookie auth is fully wired. Set-Cookie header format on login/register/otp_verify: 'access_token=<jwt>; HttpOnly; Path=/; SameSite=lax; Secure; Max-Age=604800'. Logout returns Set-Cookie with Max-Age=0. Endpoint paths for regression tests: /api/admin/concierge/threads, /api/homepage/sections, /api/rider-wallet/vendors, /api/artist/addons, /api/subscriptions/plans, /api/subscriptions/me, /api/packages/mine, /api/corporate/bulk-bookings. Corporate bulk-booking has a pre-existing bug: RoleDashboards.jsx L224 calls /api/artists?limit=200 (404) instead of /api/artists/search — dropdown is empty. Playwright: 'nav-logout' selector exists on the top nav for customers; 'sb-logout' exists on role dashboards.",
+  "rca of the issue": "N/A — no bugs introduced by iter30. The one bug found (empty artist dropdown in corporate bulk booking) is pre-existing: RoleDashboards.jsx calls the wrong endpoint path. Root cause: /api/artists (bare) never existed — the search route is /api/artists/search and returns {total, page, items:[]}. Mitigation: change L224 to api.get('/artists/search?limit=200').then(r => setArtists(r.data.items || []))."
+}

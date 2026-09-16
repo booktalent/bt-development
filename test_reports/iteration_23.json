@@ -1,0 +1,27 @@
+{
+  "summary": "Sprint 1 Iter 23 frontend regression — all 3 iter22 bugs are fixed. At 375x812: /customer, /artist, /admin AND / (landing) each report document scrollWidth==clientWidth (delta=0px). The previously-reported 585px overflow on /customer is gone; /artist (user-flagged) is fully mobile-usable with the same 0px overflow, sidebar display=none, .dash-head flex-direction=column, .kpi-grid=2 cols (166.5px 166.5px), and .dash-content width=375px with margin-left=0. Landing .cat-strip scrolls horizontally internally (698 > 375) without pushing document overflow. Tablet boundary: 768px stays in tablet band (.grid-4 = 2 cols 355px, orb visible, container pad 20px); 767px correctly falls into mobile bucket (grid-4 collapses to 1 col, orb display=none, nav-links display=none). Desktop 1440 unchanged from iter22 (grid-4 = 4 cols, orb visible, sidebar visible 240px, dash 1200px). Ultra-wide 1920 keeps .container max-width 1520px. /search still shows 4 native <select> with dark option bg rgb(15,15,20) + gold text rgb(241,209,122). /random-abc renders [data-testid='notfound-page']. Charter: REACT_APP_BACKEND_URL has 0 functional refs (only a doc-comment in /app/frontend/src/lib/api.js:11); axios baseURL='/api'; ChatBox uses window.location.host for WS. Backend regression spot-check: /api/auth/login 200, /api/wallet 200, /api/bookings/mine 200. Frontend log shows 'Compiled successfully!'.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": ["/app/test_reports/iteration_23.json"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Pre-existing (out of Sprint 1 scope, per agent note): React 'two children with the same key' warnings still surface on Landing — repeated UUIDs 22c3967c…, aa0ed1cb…, 698618d0… in the artist list. Backend data dedup issue; safe to defer.",
+    "Artist dashboard has 0 elements matching [role='tab']/.tab/button[data-tab] — the page renders a single scrollable stack (KPIs + Booking Requests), so the 'click through 4-5 artist tabs' check reduced to a single-view assertion. If tabs are supposed to exist per PRD, they are not present in the current implementation, but that's not Sprint 1 CSS scope.",
+    "iter22 kept `/api/search/ai` and `/api/reviews/mine` and `/api/coupons/list` and `/api/kyc` returning 404/405 with GET — that's likely pre-existing routing (POST-only or path-mismatch), not Sprint 1 CSS regression."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (frontend-only)", "frontend": "100%"},
+  "test_credentials": "customer@booktalent.com/Customer@123, priya@booktalent.com/Artist@123, admin@booktalent.com/Admin@123 — all working.",
+  "seed_data_creation": "None.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Iter 23 confirmed: (a) mobile 375 zero overflow on /, /customer, /artist, /admin; (b) tablet 768 unchanged (2-col, sidebar visible, orb visible, 20px pad); (c) 767 is mobile; (d) desktop 1440 & ultrawide 1920 identical to iter22 baseline. Sprint 1 responsive layer + dark-dropdown fix + 404 page are complete. Next iteration can safely move to Sprint 2 without any Sprint-1-related CSS re-work. The only lingering warning is a duplicate-key React warning on Landing due to duplicate artist UUIDs from backend — explicitly out of scope per user note.",
+  "rca of the issue": "Not applicable — no bugs found in this round; the iter22 585px overflow root cause (mobile block only targeted .dashboard-shell .main and ignored .dash-content used by all 3 dashboards) has been fully addressed by the additive rule that now targets .dashboard-shell .main, .dashboard-shell .dash-content, AND bare .dash-content with margin-left:0, width:100%, max-width:100vw, padding:20px 16px, box-sizing:border-box. The 40px landing overflow was killed by .cat-strip max-width:100vw + `* { max-width:100vw }` belt-and-braces. The tablet 768 misclassification was fixed by narrowing the mobile query to (max-width:767px) and defining the tablet band as (max-width:1024px) and (min-width:768px)."
+}

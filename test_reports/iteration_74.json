@@ -1,0 +1,34 @@
+{
+  "summary": "Iter 86 verification — security fixes, WhatsApp wachatsender live integration, notification hooks on mark-paid & manual-payout, BookingDetail page + Agency Platform tab UI. Backend 8/8 pytest pass. Frontend UI verified with correct data-testids rendered. Found + fixed a real bug: /api/agency/financial-view returned 500 for agencies with active roster (None-guard missing on sched + pricing).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter86_whatsapp_security.py",
+    "/app/test_reports/pytest/iter86.xml"
+  ],
+  "action_items": [
+    "None blocking. The v2_more.agency_financial_view fix was applied by testing agent (defensive None-guard). Main agent may want to review the one-line change in /app/backend/routes/v2_more.py line 252."
+  ],
+  "critical_code_review_comments": [
+    "notification_service.dispatch email branch is stubbed — imports send_otp_email but never calls it; email channel always ends up 'sent' (mocked). Non-blocking for this iteration since focus was WhatsApp.",
+    "routes/v2_more.py agency_financial_view lacked None-guards for missing payment_schedules and missing pricing — caused 500 whenever an agency roster had any booking without a schedule doc. Fixed inline."
+  ],
+  "updated_files": [
+    "/app/backend/routes/v2_more.py (defensive None-guard on line 252)",
+    "/app/backend/tests/test_iter86_whatsapp_security.py (new pytest suite)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "admin@booktalent.com / Admin@123 ; agency@booktalent.com / Agency@123 (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "None. Used existing pending-payout bookings (19 available) and existing agency roster.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iter 86 all-green. Wachatsender WhatsApp is LIVE — confirmed 200 + wamid on real API for phone_number=912365214997 (test #). Notification hooks fire correctly (notifications_log rows for whatsapp/payment.received + whatsapp/payout.released verified in Mongo). /api/ops/dump/{token} always 404. Admin login intact. BookingDetail page renders full timeline with 4 mark-paid buttons on booking BT-260625-A58C7A. Agency Platform Bookings tab renders KPI+table (post-fix).",
+  "rca of the issue": "BUG: /api/agency/financial-view 500. RCA: When an agency roster had bookings but a booking's `pricing` field was None (or `payment_schedules` doc absent), line 252 called `sched.get(...)` on a None sched or `b.get('pricing', {})` returned None (dict default only kicks in if key missing, not if value is None). Fix: wrapped with `if sched else 0` and `(b.get('pricing') or {})`. Reproduced by GET /api/agency/financial-view as agency@booktalent.com. Post-fix confirmed 200 with populated artists+bookings."
+}

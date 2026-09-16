@@ -1,0 +1,48 @@
+{
+  "summary": "Iter 39 (CMS Pages + FAQs + Broadcast Announcements + full SEO) validated end-to-end. Backend 22/22 pytest passing (16 baseline test_iter39_cms_seo + 6 extended). Frontend flows: landing dynamic <title>+FAQs+5-col footer+Blog/Help nav; /page/<slug> renders CMS page with SEO meta+canonical+JSON-LD; /page/unknown-slug shows friendly 404; /help, /blog, /artists/singer (H1 correct), /artists/city/mumbai, /artist/<seo-slug> and /artist/<uuid> all render. Admin CMS/FAQs/Broadcast tabs verified visually (11 CMS pages, 7 FAQs incl 3 featured, Site Announcements + Transactional Broadcast). Live banner announcement creation surfaces immediately on landing top banner AND in customer NotificationBell dropdown with unread badge=1.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/sitemap.xml", "issue": "Sitemap query filters artists by profile_completed:true — none of the 17 seeded artists have that flag, so no /artist/<slug> URLs are emitted. Baseline test only checks category presence, but review-request spec explicitly says 'artist slug URLs' should be in sitemap. Suggest loosening filter to {slug:{$exists:true,$ne:''}} or {kyc_status:'approved'} in routes/cms_seo.py L361."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "index.html + Helmet", "issues": ["Two <meta name=\"description\"> tags coexist on every page — the default from index.html plus the page-specific from <SEO> component. Not a functional bug (search engines pick last one), but ideally Helmet should be configured to override the default via defaultProps in HelmetProvider or by removing the meta from index.html so only one exists."]},
+      {"screen": "Admin FAQ seed content", "issues": ["'How does payment work?' FAQ still says 'Payments are held in escrow and released to the artist 24 hours after the event is marked complete' — this contradicts the Iter 38 wallet/escrow removal. Content is admin-editable so main agent can update it, but the seed in cms_seo.py should also be updated to reflect the new direct-settlement model."]},
+      {"screen": "ArtistProfile page package dropdown", "issues": ["React hydration warning: '<span> option cannot be a child of <span>' — a <span> is rendered inside a native <select><option> in Package selector. Not blocking but should be fixed."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter39_cms_seo.py",
+    "/app/backend/tests/test_iter39_extended.py",
+    "/app/test_reports/pytest/iter39_run.xml",
+    "/app/test_reports/pytest/iter39_extended.xml"
+  ],
+  "action_items": [
+    "(minor) Sitemap: relax profile_completed filter so artist slug URLs appear in /api/sitemap.xml (routes/cms_seo.py L361-364).",
+    "(minor) Update stale 'escrow' FAQ answer to match Iter 38 direct-settlement model (also update seed in cms_seo.py).",
+    "(nit) Remove duplicate default <meta name=description> from public/index.html (or configure Helmet to replace).",
+    "(nit) Fix Package select rendering inside ArtistProfile — <option> should not wrap <span>."
+  ],
+  "critical_code_review_comments": [
+    "routes/cms_seo.py sitemap generator: filter {profile_completed: True} silently excludes ALL current artists. If profile_completed is a late/optional field, this feature is effectively disabled for the whole marketplace.",
+    "backend/server.py still >2500 lines — tech debt not yet addressed (already flagged in iter36).",
+    "AnnouncementBody uses Literal for priority (low/normal/high/critical) — admin UI dropdown must not offer 'medium' otherwise POST returns 422. Verified the admin UI form only exposes low/normal/high/critical, so no bug — but worth documenting in an ADR because 'medium' is the intuitive default in most systems."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter39_extended.py (new — 6 tests covering announcement read receipt, priya slug + legacy uuid resolve, featured FAQ count, banner-in-active flow, sitemap contents)"
+  ],
+  "success_rate": {
+    "backend": "100% (22/22 pytest across 2 files)",
+    "frontend": "100% — all 15 review-request UI checks pass visually"
+  },
+  "test_credentials": "admin@booktalent.com / Admin@123, customer@booktalent.com / Customer@123, priya@booktalent.com / Artist@123 (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "Created 1 TEST_iter39_UI_Banner announcement during UI test and deleted it after (see cleanup step). No residual test data left.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iter 39 CMS/SEO is green. Backend routes registered under prefix /api by routes/cms_seo.py::make_router — key endpoints: /api/cms, /api/cms/pages/<slug>, /api/menu/{header|footer}, /api/faqs/search?featured=true|q=..., /api/faqs/categories, /api/announcements/active, /api/announcements/<id>/read (auth), /api/admin/{cms-v2,faqs-v2,announcements} CRUD, /api/sitemap.xml (application/xml), /api/robots.txt, /api/seo/category/<slug>, /api/seo/city/<slug>, /api/artists/slug/<slug>. AnnouncementBody.priority Literal = low|normal|high|critical (NOT 'medium'). AnnouncementBody.channels Literal = banner|popup|dashboard. Priya's SEO slug: priya-sharma-bollywood-vocalist-mumbai-22c396. All 17 seed artist_profiles have `slug` but `profile_completed:false` — so sitemap currently emits 0 /artist/<slug> URLs (see minor issue).",
+  "rca of the issue": "Sitemap-missing-artist-URLs RCA: routes/cms_seo.py::sitemap_xml queries db.artist_profiles.find({'profile_completed': True}). None of the seeded profiles set this flag (all 17 return 0). Suggested fix: change filter to {'$or':[{'profile_completed':True},{'slug':{'$exists':True,'$ne':''}}]} OR key it off kyc_status/verified/active. Not blocking release since the review-request test only asserts categories+cities+CMS pages are present."
+}

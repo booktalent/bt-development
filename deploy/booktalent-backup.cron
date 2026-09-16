@@ -1,0 +1,11 @@
+# BookTalent — nightly MongoDB backup (installed as /etc/cron.d/booktalent-backup)
+#
+# Runs at 02:30 UTC every day. Adjust the hour to your traffic-lowest window.
+# The cron file MUST end with a newline. `MAILTO=""` suppresses cron mail;
+# real failures fire the Slack webhook configured in /etc/default/booktalent-backup.
+
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+MAILTO=""
+
+30 2 * * *  root  /usr/local/bin/booktalent-backup >/var/log/booktalent-backup.log 2>&1

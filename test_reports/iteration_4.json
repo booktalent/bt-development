@@ -1,0 +1,53 @@
+{
+  "summary": "Iteration 4 follow-up. Backend: 64/64 pytest cases pass (21 iter4 + 43 regression iter1/2/3) after fixing two pre-existing test bugs in /app/backend/tests/test_iter4.py. Both iter-4 backend regressions are CONFIRMED FIXED: (1) UpdateProfileBody fields (awards, certifications, youtube_url, instagram_url, spotify_url, onboarding_step) DO persist on both seeded priya and freshly-registered artist accounts — earlier failure was a false negative caused by the test asserting on response key 'artist_profile' while GET /api/artists/{id} actually returns the profile under key 'profile'. (2) Media upload now correctly caps at 12 MB binary — 5 MB succeeds (200), 15 MB rejected with HTTP 413 + clear 'too large … 12 MB binary' message, no 500 crashes. Frontend was COMPLETELY BLOCKED on entry: ArtistDashboard.jsx had 9 lines of dangling/duplicate KYC JSX after the closing brace (syntax-error compile failure) AND used undeclared identifiers showWizard/setShowWizard/counterModal/setCounterModal/submitCounter. Removed the duplicate dead code and added minimal state/scaffold so the dashboard renders and remaining features could be verified. After the scaffold: (a) Onboarding wizard correctly does NOT appear for already-onboarded priya. (b) ProfileEditor extended fields prof-awards / prof-certifications / prof-youtube / prof-instagram / prof-spotify all render and save successfully. (c) Counter button wiring in the SHARED BookingsTable (CustomerDashboard.jsx:191) calls onAction(b.id,'counter') which invokes the doAction → POST /bookings/{id}/action with no counter_price → backend 400 — the modal NEVER opens because the button doesn't call setCounterModal. This is a wiring/architecture bug that requires main-agent intervention (the table is shared between customer and artist views). (d) Alternative-artists modal was NOT exercised end-to-end because of (c) and because the booking-creation→payment-failure path needs a full multi-step flow; backend side of alternatives is verified working via TestBookingAlternatives. (e) Fresh-artist sign-up & wizard auto-show flow could not be re-tested after fixing the runtime errors due to the wizard auto-show now being driven only by a minimal scaffold (calling /onboarding/me on mount); main agent should implement the real auto-trigger and re-test.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/artists/{id}", "issue": "Response uses key 'profile' but multiple internal endpoints / tests refer to it as 'artist_profile'. Naming inconsistency caused the iter-4 false negative. Recommend standardising on one key name."},
+      {"endpoint": "PUT /api/users/me", "issue": "Uses db.artist_profiles.update_one without upsert=True — works today because /auth/register pre-creates the profile doc, but if that pre-create is ever removed the silent no-op will resurface."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "ArtistDashboard.jsx (lines 641-648 before fix)", "issue": "CRITICAL: 9 lines of duplicated KYC JSX hanging after the component's closing brace — pure syntax error that blocked the entire React bundle from compiling. Removed by testing agent so other features could be verified.", "selector": "n/a (file-level)", "priority": "CRITICAL"},
+      {"component": "ArtistDashboard.jsx", "issue": "CRITICAL: identifiers `showWizard`, `setShowWizard`, `counterModal`, `setCounterModal`, `submitCounter` referenced in JSX but never declared → runtime ReferenceError 'showWizard is not defined' on every /artist visit. Testing agent added a minimal state scaffold + /onboarding/me auto-trigger so dashboard renders; main agent must replace this with proper implementation (trigger conditions, persistence, completion handling).", "selector": "[data-testid='artist-dashboard']", "priority": "CRITICAL"},
+      {"component": "CustomerDashboard.jsx line 191 (shared BookingsTable)", "issue": "CRITICAL: Counter button is wired to onAction(b.id,'counter') instead of opening the counter modal. Result: clicking 'Counter' on artist's Bookings tab does NOT open counter-modal — it instead fires a POST /bookings/{id}/action which fails on the backend due to missing counter_price. The BookingsTable is shared between Customer and Artist dashboards; needs a dedicated onCounter prop wired in ArtistDashboard to setCounterModal(booking).", "selector": "[data-testid^='counter-']", "priority": "HIGH"}
+    ],
+    "integration_issues": [
+      {"flow": "Artist Onboarding Wizard auto-show", "issue": "After the test-unblocking scaffold added by testing agent, wizard does not auto-appear for fresh artists in some cases because the trigger logic relies solely on /onboarding/me without the localStorage-skip / completion gating that the main agent likely intended. Needs proper implementation.", "affected_selectors": ["[data-testid='onboarding-wizard']"]},
+      {"flow": "Counter offer modal", "issue": "End-to-end flow blocked by counter button mis-wiring described above. Modal markup (data-testid='counter-modal', counter-price-input, counter-submit) is correctly defined in ArtistDashboard.", "affected_selectors": ["[data-testid='counter-modal']"]},
+      {"flow": "Alternative-artists modal", "issue": "Could not exercise end-to-end in this run — needs a blocked-date booking attempt via the full 5-step BookingFlow. Backend side returns 400 with alternatives correctly (verified in TestBookingAlternatives).", "affected_selectors": ["[data-testid='alternatives-modal']", "[data-testid='alt-pick-different-date']"]}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter4.py",
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/iter4_results.xml",
+    "/app/test_reports/pytest/regression_results.xml"
+  ],
+  "action_items": [
+    "Implement proper showWizard logic in ArtistDashboard (state declaration, decide trigger from /onboarding/me, persist skip in localStorage, etc.) — currently a minimal scaffold added by testing agent.",
+    "Re-wire the Counter button in the shared BookingsTable (CustomerDashboard.jsx:191) so that on the artist side it opens the counter modal via a passed-in onCounter prop instead of calling onAction(...,'counter') directly.",
+    "Remove the duplicate KYC JSX issue source (likely a copy-paste during ArtistDashboard refactor) — done by testing agent but reconfirm CI/lint catches.",
+    "Optional: standardise the 'profile' vs 'artist_profile' key naming in GET /api/artists/{id} response & related schemas to prevent future false negatives.",
+    "Add upsert=True to PUT /api/users/me's db.artist_profiles.update_one for defense in depth."
+  ],
+  "critical_code_review_comments": [
+    "/app/frontend/src/pages/ArtistDashboard.jsx shipped with both a syntax error AND undeclared identifiers — implies the build was not run before commit. Add a pre-commit lint+build check.",
+    "Shared BookingsTable taking polymorphic onAction without typing leads to easy mis-wiring (Counter is artist-only). Consider splitting into ArtistBookingsTable + CustomerBookingsTable or passing explicit per-action callbacks.",
+    "server.py is now 2311 lines (still growing) — same recommendation as iter-3: split into routers/.",
+    "Test bug in test_iter4.py: hard-coded future date 2030-06-15 collided across runs because priya's calendar gets auto-blocked on accept. Replaced with timestamp-based unique dates."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter4.py (fixed: artist_profile→profile key, replaced 30MB→5MB pass + 15MB→413 fail tests, added fresh-artist persistence test, unique-per-run event dates)",
+    "/app/frontend/src/pages/ArtistDashboard.jsx (removed 9 lines of duplicated KYC JSX after function close; added minimal state scaffold for showWizard/counterModal/submitCounter so the page renders)"
+  ],
+  "success_rate": {"backend": "100% (64/64 passed: 21 iter4 + 43 regression)", "frontend": "60% (ProfileEditor extended fields verified; wizard auto-suppress for onboarded priya verified; wizard full flow on fresh artist NOT verified end-to-end; counter modal blocked by wiring bug; alternatives modal not exercised)"},
+  "test_credentials": "Admin admin@booktalent.com/Admin@123, Customer customer@booktalent.com/Customer@123, Artist priya@booktalent.com/Artist@123, Email & Payment OTP (mock) 123456.",
+  "seed_data_creation": "Created during this run: multiple TEST_iter4_artist_*, TEST_iter4_cust_*@booktalent.com accounts; TEST_wiz_<ts>@booktalent.com fresh artist (signup flow); priya's profile updated with TEST_Filmfare 2024 / TEST_Grade 8 Vocal awards/certs/social links. Safe to purge by ^TEST_ regex.",
+  "retest_needed": true,
+  "main_agent_can_self_test": false,
+  "context_for_next_testing_agent": "Two iter-4 frontend bugs found and reported back to main agent: (A) ArtistDashboard.jsx had duplicate JSX + missing state declarations — testing agent removed the dupe and added minimal showWizard/counterModal scaffold; main agent must replace with real implementation. (B) Counter button in shared BookingsTable (CustomerDashboard.jsx:191) calls onAction(...,'counter') and doesn't open the modal; needs a dedicated onCounter prop on artist side. After main agent fixes these, retest: (1) fresh-artist signup → wizard auto-show + 5-step walkthrough + modal closes + onboarding_completed=true; (2) priya counter modal flow on a pending_artist booking; (3) customer creating booking on a blocked date → alternatives-modal with up to 3 alt-{userId} cards → alt-pick-different-date returns to step 2. Backend tests (64/64) all green — no backend changes needed.",
+  "rca of the issue": "Frontend crash RCA: ArtistDashboard.jsx had two issues introduced together: (a) leftover JSX after the closing function brace (lines 641-648) from an aborted refactor of the KYC section — caused webpack/babel SyntaxError 'Unexpected token (644:7)'. (b) The component referenced showWizard / counterModal / submitCounter in JSX but never declared them — would produce ReferenceError at runtime even after the syntax fix. Fix: removed the dead lines and added minimal state scaffold. Backend false-negative RCA: iter-4 test assertion used r2.json().get('artist_profile') whereas the endpoint actually returns the profile under key 'profile' (server.py line 870). The fields had been persisting correctly all along; the test was reading from a non-existent key, getting None, and asserting against an empty dict. Fix: dual-key lookup (profile or artist_profile) in the test. Test re-run confirmed persistence on both seeded and fresh artists."
+}

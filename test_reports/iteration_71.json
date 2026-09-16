@@ -1,0 +1,52 @@
+{
+  "summary": "Iter 71 dual-phase test. PHASE 1 (security): SEC-001 PASS — /api/auth/email/verify and /api/auth/otp/verify now return {verified:true, token:null}, set no access_token cookie, and the resulting session is unauthenticated on /auth/me (401); re-registering an existing email is still blocked (400) and admin's password is unchanged. SEC-002 PASS — old admin password Admin@123 rejected (401), rotated ADMIN_PASSWORD 'BT!Sec-...-2026' logs in, sets httpOnly access_token cookie, /auth/me works cookie-only, DB hash is $2b$ bcrypt, env value matches /app/memory/test_credentials.md. SEC-003 PASS — wrote a live fail-closed test that posts a hash-VALID status=success Easebuzz callback for a synthetic pending payment: retrieve API cannot confirm, payment ends 'failed' with failure_reason=retrieve_status=..., redirect goes to status=failure; forged/bad hash callback is rejected and leaves payment 'pending'. test_iter64_refunds.py: 2/2 pass (no refund regression). Regression: full email-OTP signup (send -> verify -> register) works and issues a session, register without verification blocked (400), password login works for customer/artist/agency, wrong password 401, logout clears cookie. PHASE 2 (UX): guest clicks on favorite-artist-btn, message-artist-btn and a free calendar date all open the LoginGate with the correct contextual copy; logged-in customer Favorite toggles bt_favorites in localStorage both ways with toast, Message shows 'Chat unlocks after you book & pay', calendar pick navigates to /book/{artistId}?pkg=..&date=YYYY-MM-DD. Mobile 390x844: Customer (6 pills), Artist (14 pills) and Admin (29 pills) dashboards all render aside.sidebar as a sticky horizontal scroll strip (display:flex, row, overflow-x:auto, 49px tall) with every sb-item visible and tappable. Only open items are pre-existing hardening gaps (no login rate limiting, wildcard CORS) and cosmetic bugs.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/auth/login", "issue": "No brute-force protection: 6 consecutive wrong-password attempts for the same account all return 401 with no lockout/429 and no per-IP throttle. Auth playbook expects lockout after 5 failures. Test: TestAuthHardeningObservations::test_brute_force_lockout_after_5_failures (only failing test)."},
+      {"endpoint": "CORS (server.py add_middleware)", "issue": "CORS_ORIGINS=\"*\" with allow_credentials=True. Responses carry 'access-control-allow-origin: *' together with 'access-control-allow-credentials: true' — browsers reject that combination, so it is not directly exploitable, but it violates the playbook requirement of explicit credentialed origins and will silently break any future cross-origin credentialed client. Set CORS_ORIGINS to the explicit frontend origin(s)."},
+      {"endpoint": "/api/auth/email/send", "issue": "60s cooldown is keyed on email only with no per-IP limit, so it can be used as an email-enumeration-free but unlimited-fan-out send loop across many addresses once a real Resend key is added. Low priority now (mock mode)."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "BookingFlow (step 1 warning banner)", "issue": "Banner renders as \"'s profile is still being completed\" — the artist name interpolation is empty, leaving a leading apostrophe.", "selector": "booking step-1 warning banner", "priority": "LOW"},
+      {"component": "Global (App/ToastProvider tree)", "issue": "React hydration/DOM-nesting console error on the artist profile page: 'In HTML, <span> cannot be a child of <option>'. A select's <option> contains a <span> — invalid HTML.", "selector": "select > option > span", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Booking flow — Artist add-ons", "issues": ["Leftover QA seed data is visible to real users: mandatory artist add-ons named 'PW_Sound_Setup' and 'TEST_Sound_System' (+₹5,000 each) show on Priya Sharma's booking page. Clean up seeded TEST_ add-ons."]},
+      {"screen": "Admin dashboard @390px", "issues": ["Data tables (Artists list) overflow horizontally with no visible affordance/scroll hint; only the first 2 columns fit. Table scroll works (overflow-x:auto) but users get no cue."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter71_security.py",
+    "/app/backend/tests/test_iter71_easebuzz_failclosed.py",
+    "/app/test_reports/pytest/iter71_security.xml",
+    "/app/test_reports/pytest/iter71_easebuzz.xml",
+    "/app/test_reports/pytest/iter71_refunds.xml"
+  ],
+  "action_items": [
+    "Add login rate limiting / account lockout (e.g. 5 failures -> 429 with backoff, per email+IP) — currently unlimited password guessing on /api/auth/login.",
+    "Replace CORS_ORIGINS=\"*\" with explicit origins since allow_credentials=True.",
+    "Fix empty artist-name interpolation in the booking step-1 'profile is still being completed' banner.",
+    "Remove <span> inside <option> to clear the DOM-nesting console error.",
+    "Delete seeded TEST_/PW_ artist add-ons from the demo artist so they don't show in the booking flow."
+  ],
+  "critical_code_review_comments": [
+    "SEC-001/002/003 implementations reviewed line-by-line and are correct: email/otp verify endpoints no longer call make_token/_set_auth_cookie; seed_admin re-hashes when ADMIN_PASSWORD changes (verify_password check on startup); easebuzz callback now requires envelope status in ('1','success') AND inner status=='success' before completing, else marks failed with failure_reason.",
+    "server.py is 3841 lines — auth, users, artists, bookings all in one module; split into routers (auth.py, users.py, bookings.py) as the file exceeds the 700-line guideline.",
+    "Rotated admin password is stored in plaintext in /app/backend/.env AND /app/memory/test_credentials.md; acceptable for preview but must be a deploy-time secret, and seed_admin silently resets the live admin password on every boot to whatever the env holds."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter71_security.py",
+    "/app/backend/tests/test_iter71_easebuzz_failclosed.py"
+  ],
+  "success_rate": {"backend": "95% (20/21 assertions-groups pass; only the brute-force-lockout expectation fails)", "frontend": "100% of Iter 71 UX cases (3 guest LoginGates, 3 logged-in behaviours, 3 mobile dashboards)"},
+  "seed_data_creation": "Transient only: one signup user test_iter71_*@example.com (deleted in teardown) and one synthetic easebuzz payment + payment_logs rows (deleted in test finally block). No seeded data modified.",
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_self_test": true,
+  "test_credentials": "Admin admin@booktalent.com / BT!Sec-XW8ANOssw6y0AI7fjVcT-2026 (verified working); customer@booktalent.com / Customer@123; priya@booktalent.com / Artist@123; agency@booktalent.com / Agency@123 — all verified this run. test_credentials.md is accurate.",
+  "context_for_next_testing_agent": "Run `pytest tests/test_iter71_security.py tests/test_iter71_easebuzz_failclosed.py tests/test_iter64_refunds.py` from /app/backend as the security regression suite. NOTE: older suites still hardcode ADMIN_PASSWORD='Admin@123' (test_iter51_cookie_auth_security.py, test_iter30_cookie_auth.py, test_iter32_outstation.py) and will now fail auth — they should read the password from /app/memory/test_credentials.md or TEST_ADMIN_PASSWORD env. The easebuzz fail-closed test relies on the sandbox retrieve API not knowing a synthetic txnid; if Easebuzz sandbox ever starts returning success for unknown txnids the test needs a monkeypatched retrieve_txn instead.",
+  "rca_of_the_issue": "SEC-001 root cause was /auth/email/verify and /auth/otp/verify issuing a full JWT + auth cookie whenever the verified address matched an existing user, which combined with the mock OTP 123456 allowed passwordless takeover of any account including admin. SEC-003 root cause was a fail-open guard (`if retrieved_status and retrieved_status != 'success'`) that fell through to 'completed' whenever the retrieve call errored or returned an unparsable body. Both are now fixed and verified by the new tests above; the remaining risk in the auth surface is the absence of login rate limiting, which makes the (now password-only) login the sole brute-forceable entry point."
+}

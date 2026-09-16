@@ -1,0 +1,125 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# IDE and editors
+.idea/
+.vscode/
+
+# Dependencies
+node_modules/
+/node_modules
+/.pnp
+.pnp.js
+.yarn/install-state.gz
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# Testing
+/coverage
+
+# Next.js
+/.next/
+/out/
+next-env.d.ts
+*.tsbuildinfo
+
+# Production builds
+/build
+dist/
+dist
+
+# Environment files (comprehensive coverage)
+
+*token.json*
+*credentials.json*
+
+# Logs and debug files
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+dump.rdb
+
+# System files
+.DS_Store
+*.pem
+
+# Python
+__pycache__/
+*pyc*
+venv/
+.venv/
+
+# Development tools
+chainlit.md
+.chainlit
+.ipynb_checkpoints/
+.ac
+
+# Deployment
+.vercel
+
+# Data and databases
+agenthub/agents/youtube/db
+
+# Archive files and large assets
+**/*.zip
+**/*.tar.gz
+**/*.tar
+**/*.tgz
+*.pack
+*.deb
+*.dylib
+
+# Build caches
+.cache/
+
+memory/test_credentials.md
+
+# Mobile development
+android-sdk/
+# Iter 99 deployment audit: .env files must be tracked so Emergent
+# deploy can replace placeholders. Local overrides go into .env.local.
+.env.local
+.env.*.local
+credentials.json
+*.key
+.credentials
+frontend/node_modules/.cache/default-development/64.pack
+frontend/node_modules/.cache/default-development/68.pack
+frontend/node_modules/.cache/default-development/66.pack
+frontend/node_modules/.cache/default-development/67.pack
+frontend/node_modules/.cache/default-development/69.pack
+frontend/node_modules/.cache/default-development/70.pack
+frontend/node_modules/.cache/default-development/79.pack
+frontend/node_modules/.cache/default-development/75.pack
+frontend/node_modules/.cache/default-development/82.pack
+frontend/node_modules/.cache/default-development/35.pack
+frontend/node_modules/.cache/default-development/84.pack
+frontend/node_modules/.cache/default-development/57.pack
+frontend/node_modules/.cache/default-development/86.pack
+frontend/node_modules/.cache/default-development/90.pack
+frontend/node_modules/.cache/default-development/9.pack
+frontend/node_modules/.cache/default-development/8.pack
+frontend/node_modules/.cache/default-development/20.pack
+frontend/node_modules/.cache/default-development/15.pack
+frontend/node_modules/.cache/default-development/22.pack
+frontend/node_modules/.cache/default-development/26.pack
+frontend/node_modules/.cache/default-development/1.pack
+frontend/node_modules/.cache/default-development/2.pack
+frontend/node_modules/.cache/default-development/0.pack
+frontend/node_modules/.cache/default-development/3.pack
+frontend/node_modules/.cache/default-development/4.pack
+frontend/node_modules/.cache/default-development/7.pack
+frontend/node_modules/.cache/default-development/11.pack
+frontend/node_modules/.cache/default-development/6.pack
+frontend/node_modules/.cache/default-development/10.pack
+frontend/node_modules/.cache/default-development/14.pack
+frontend/node_modules/.cache/default-development/13.pack
+frontend/node_modules/.cache/default-development/16.pack
+.env
+.env.*
+*.env
+frontend/node_modules/.cache/default-development/17.pack

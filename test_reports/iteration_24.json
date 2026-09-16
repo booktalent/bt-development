@@ -1,0 +1,40 @@
+{
+  "summary": "Iter24 hotfix verification (frontend only) — CMS Pages form dark theme + mobile hamburger drawer. All targeted fixes work as designed. CMS form fields (cms-slug, cms-title, cms-body, meta description) render with dark bg rgb(15,15,27) and light text rgb(240,238,255); placeholder rgba(240,238,255,0.25). Typed text is high-contrast and clearly visible. Mobile hamburger visible at 375px, drawer opens with 'open' class on both drawer and scrim, body-scroll lock engages (overflow:hidden), and drawer closes via scrim tap AND on route change (drawer-search → /search, drawer-logout from /customer → /login). Desktop 1440px: mobile-nav-toggle correctly display:none, .nav-links visible, 0px horizontal overflow. Tablet 768px: 0px overflow. 404 page still renders. Signup + Login forms also inherit the dark-theme rule. All original data-testids preserved; new drawer testids present. Only issue: pre-existing 'duplicate React key' warnings on landing page (not part of this iter's scope).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Landing page (unauthenticated /) — pre-existing, not from iter24",
+        "issues": [
+          "Duplicate React key warnings in console for 3 artist/category IDs (22c3967c…, aa0ed1cb…, 698618d0…) — occurs 3x on mount. Pre-existing; likely two components rendering the same list. Not blocking, but should be cleaned up in a future sprint."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "None for iter24 hotfix — all reported bugs are FIXED and verified.",
+    "Future sprint: fix duplicate React keys on landing page (pre-existing, seen in console)."
+  ],
+  "critical_code_review_comments": [
+    "Nav.jsx doLogout() calls navigate('/') — if user was already on '/', useEffect on location.pathname would NOT fire and drawer would stay open. In practice this doesn't matter because after logout the auth guard redirects to /login (verified: from /customer, logout landed on /login and drawer disappeared). If you ever remove the login redirect, add setDrawerOpen(false) inside doLogout() as a belt-and-suspenders fix.",
+    "index.css universal `input, textarea, .input` selector correctly targets the AdminEnterprise.jsx .input class + native elements. Autofill safety with -webkit-box-shadow inset trick is correctly applied. No specificity conflicts with .field-input observed."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (not tested this iter)", "frontend": "100%"},
+  "test_credentials": "admin@booktalent.com/Admin@123, customer@booktalent.com/Customer@123 — both worked",
+  "seed_data_creation": "None. Did not save the CMS 'TEST_slug_visible' entry (typed but did not click + Add Page).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iter24 verified: (1) CMS Pages form dark theme via universal `.input`/textarea/input selector in index.css lines 789-835; (2) mobile hamburger drawer via Nav.jsx state + index.css lines 837-910. Data-testids in use: mobile-nav-toggle, mobile-nav-drawer, mobile-nav-scrim, mobile-nav-close, drawer-home, drawer-search, drawer-dashboard, drawer-signin, drawer-signup, drawer-logout. Desktop @ 1440 unchanged from iter23 baseline. Sprint 2 features (chunked uploads, ffmpeg, thumbnails) NOT yet implemented per main agent's request. Pre-existing duplicate React key warnings on landing page still present.",
+  "rca_of_the_issue": {
+    "original_bug_1": "White input backgrounds on CMS form — root cause: AdminEnterprise.jsx used className='input' but no CSS rule defined for the .input class → browser default (white bg, black text) applied, invisible against dark theme. Fix: index.css lines 796-810 added universal `input:not([checkbox|radio|range|file|color]), textarea, .input` rule with var(--bg2) bg + var(--white) color. VERIFIED FIXED.",
+    "original_bug_2": "Mobile nav not visible — root cause: iter22 hid .nav-links on ≤767 without providing an alternative menu. Fix: added .mobile-nav-toggle button (visible only ≤767 via media query line 905) + slide-in .mobile-nav-drawer with .mobile-nav-scrim overlay. Nav.jsx wires drawerOpen state, closes on location.pathname change, and locks body scroll. VERIFIED FIXED.",
+    "verification_evidence": "Computed styles on cms-slug/title/body: bg=rgb(15,15,27), color=rgb(240,238,255), placeholder=rgba(240,238,255,0.25). Typed 'TEST_slug_visible', 'TEST title visible', '<p>TEST body content...</p>' — all visible in screenshot. Mobile 375: toggle display=flex, drawer.open class applied, body.style.overflow='hidden', drawer-search click navigates to /search AND drawer closes (class returns to 'mobile-nav-drawer '). Desktop 1440: toggle display=none, nav-home visible, 0 overflow."
+  }
+}

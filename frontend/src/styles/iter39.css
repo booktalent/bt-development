@@ -1,0 +1,231 @@
+/* ─────────────────────────────────────────────────────────────────────────
+   Iter 39 — CMS pages, Footer, Help Center, Announcements, Landing pages.
+   Kept in its own file so Iter 38 (business-model pivot) styles remain clean.
+────────────────────────────────────────────────────────────────────────── */
+
+/* ── Page Hero (Iter 40 — featured banner on CMS pages, blog list) ─── */
+.page-hero {
+  position: relative;
+  min-height: 340px;
+  padding: 80px 24px 60px;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(140deg, rgba(60, 40, 120, 0.35), rgba(212, 175, 55, 0.12));
+  background-size: cover; background-position: center;
+  border-bottom: 1px solid var(--glass-border);
+  overflow: hidden;
+  margin-bottom: 40px;
+}
+.page-hero::after {
+  content: "";
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse at bottom, rgba(0,0,0,0.6), transparent 70%);
+  pointer-events: none;
+}
+.page-hero-inner {
+  position: relative; z-index: 2;
+  text-align: center;
+  max-width: 820px;
+}
+.page-hero-inner h1 {
+  font-family: var(--font-serif, "Playfair Display", serif);
+  font-size: 52px;
+  color: #fff;
+  margin: 0 0 14px;
+  text-shadow: 0 3px 12px rgba(0, 0, 0, 0.4);
+  line-height: 1.1;
+}
+.page-hero-inner p {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 17px;
+  max-width: 640px;
+  margin: 0 auto 20px;
+  line-height: 1.6;
+}
+@media (max-width: 700px) {
+  .page-hero { min-height: 260px; padding: 60px 20px 40px; }
+  .page-hero-inner h1 { font-size: 34px; }
+  .page-hero-inner p { font-size: 15px; }
+}
+
+/* ── Site Footer ─────────────────────────────────────────────────────── */
+.site-footer {
+  margin-top: 80px;
+  padding: 60px 24px 24px;
+  border-top: 1px solid var(--glass-border);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(0, 0, 0, 0));
+  color: var(--white-muted);
+}
+.footer-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr 1fr 1fr;
+  gap: 40px;
+}
+@media (max-width: 900px) {
+  .footer-inner { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 560px) {
+  .footer-inner { grid-template-columns: 1fr; gap: 28px; }
+}
+.footer-col { display: flex; flex-direction: column; gap: 8px; }
+.footer-col a {
+  color: var(--white-muted);
+  text-decoration: none;
+  font-size: 13.5px;
+  transition: color .15s ease;
+  padding: 2px 0;
+}
+.footer-col a:hover { color: var(--gold-light); }
+.footer-h {
+  font-family: var(--font-serif, "Playfair Display", serif);
+  font-weight: 700;
+  color: var(--white);
+  font-size: 15px;
+  margin-bottom: 6px;
+  letter-spacing: 0.2px;
+}
+.footer-brand { display: flex; align-items: center; gap: 10px; font-family: var(--font-serif, "Playfair Display", serif); font-weight: 700; font-size: 20px; color: var(--white); }
+.footer-tag { color: var(--white-muted); font-size: 13px; line-height: 1.55; margin-top: 8px; max-width: 260px; }
+.footer-bottom {
+  max-width: 1200px;
+  margin: 40px auto 0;
+  padding-top: 22px;
+  border-top: 1px solid var(--glass-border);
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 12.5px;
+  flex-wrap: wrap; gap: 12px;
+}
+.footer-legal { display: flex; gap: 16px; }
+.footer-legal a { color: var(--white-muted); text-decoration: none; }
+.footer-legal a:hover { color: var(--gold-light); }
+
+/* ── Site Banner (Broadcast) ─────────────────────────────────────────── */
+.site-banner {
+  position: relative;
+  padding: 10px 16px;
+  color: #fff;
+  text-align: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  animation: slideDown .35s ease-out;
+  z-index: 40;
+}
+.site-banner-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex; align-items: center; justify-content: center;
+  gap: 8px; flex-wrap: wrap; padding-right: 30px;
+  font-size: 13.5px;
+}
+.site-banner-title { font-weight: 700; }
+.site-banner-body { opacity: 0.92; }
+.site-banner-cta {
+  color: #fff; text-decoration: underline; font-weight: 600;
+  margin-left: 4px;
+}
+.site-banner-dismiss {
+  position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+  background: transparent; border: none; color: #fff; font-size: 22px;
+  line-height: 1; cursor: pointer; opacity: 0.85;
+}
+.site-banner-dismiss:hover { opacity: 1; }
+@keyframes slideDown { from { transform: translateY(-100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+/* ── Announcement Popup ──────────────────────────────────────────────── */
+.popup-scrim {
+  position: fixed; inset: 0;
+  background: rgba(0, 0, 0, 0.75); backdrop-filter: blur(6px);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 5000; padding: 16px;
+  animation: fadeIn .25s ease-out;
+}
+.popup-card {
+  position: relative;
+  background: linear-gradient(140deg, rgba(30, 25, 50, 0.98), rgba(20, 15, 35, 0.98));
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  padding: 32px 28px;
+  max-width: 460px; width: 100%;
+  color: var(--white);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5);
+  animation: popIn .32s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.popup-close {
+  position: absolute; top: 10px; right: 12px;
+  background: transparent; border: none; color: var(--white-muted);
+  font-size: 28px; line-height: 1; cursor: pointer;
+}
+.popup-close:hover { color: var(--white); }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes popIn  { from { transform: scale(.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+/* ── CMS Page body typography ────────────────────────────────────────── */
+.cms-content { max-width: 780px; margin: 0 auto; }
+.cms-body {
+  color: var(--white-muted); font-size: 16px; line-height: 1.75;
+}
+.cms-body h1, .cms-body h2, .cms-body h3 {
+  color: var(--white);
+  font-family: var(--font-serif, "Playfair Display", serif);
+  margin: 32px 0 12px;
+}
+.cms-body h2 { font-size: 26px; }
+.cms-body h3 { font-size: 20px; }
+.cms-body p { margin-bottom: 16px; }
+.cms-body a { color: var(--gold-light); text-decoration: underline; }
+.cms-body ul, .cms-body ol { padding-left: 24px; margin-bottom: 16px; }
+.cms-body li { margin-bottom: 6px; }
+
+/* ── Help Center FAQ list ────────────────────────────────────────────── */
+.faq-list { max-width: 860px; margin: 0 auto; }
+.faq-row {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  margin-bottom: 12px;
+  overflow: hidden;
+  transition: border-color .18s ease, background .18s ease;
+}
+.faq-row.open { border-color: rgba(212, 175, 55, 0.4); background: rgba(255, 255, 255, 0.055); }
+.faq-q {
+  display: flex; width: 100%; justify-content: space-between; align-items: center;
+  padding: 18px 20px; text-align: left; background: transparent; border: none;
+  color: var(--white); font-size: 15.5px; font-weight: 600; cursor: pointer;
+  gap: 20px;
+}
+.faq-q:hover { color: var(--gold-light); }
+.faq-caret {
+  color: var(--gold); font-size: 22px; font-weight: 400; line-height: 1;
+  min-width: 24px; text-align: center;
+}
+.faq-a {
+  padding: 0 20px 18px; color: var(--white-muted);
+  font-size: 14.5px; line-height: 1.7;
+  animation: unfold .22s ease-out;
+}
+@keyframes unfold { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+
+/* Featured FAQ block on Landing */
+.faq-hero {
+  max-width: 900px; margin: 60px auto; padding: 0 24px;
+}
+.faq-hero-head { text-align: center; margin-bottom: 32px; }
+.faq-hero-head h2 { font-size: 34px; margin-bottom: 8px; }
+
+/* ── Landing SEO section ─────────────────────────────────────────────── */
+.landing-hero {
+  text-align: center; padding: 40px 20px;
+}
+
+/* Category chip active */
+.cat-chip-active {
+  background: linear-gradient(135deg, var(--gold), var(--gold-light)) !important;
+  color: #000 !important;
+  border-color: transparent !important;
+}
+
+/* Share buttons */
+.share-bar {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding-top: 16px; border-top: 1px solid var(--glass-border);
+}

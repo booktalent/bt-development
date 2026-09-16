@@ -1,0 +1,48 @@
+{
+  "summary": "Iter 59.1 booking-payment bulletproof fix fully VERIFIED end-to-end. All 3 P0 failure modes (login redirect, Not Authorized, T&C error toast) are GONE. Verified: (1) SINGLE-ARTIST happy path via UI as customer@booktalent.com → /book/aa0ed1cb (Kavya) → step 6 with data-testid=step-success and data-testid=booking-ref='Booking Ref: BT-260727-1EA740'. No login redirect, no 401 toast, no T&C toast. (2) MULTI-ARTIST BATCH via UI → /book/22c3967c (Priya)+Mohit seeded via localStorage → step 6 with 'Your event with 2 artists is officially booked' and TWO refs 'Event Refs: BT-260727-C6E7A0 · BT-260727-C14A90'. (3) SESSION-EXPIRY graceful path — cleared cookies before Pay, toast shows '⚠ Your session ended. Please refresh the page and sign in again to complete the booking.' URL stays on /book/… (no auto-redirect). (4) Backend regression pytest 4/4 pass in test_iter60_booking_hardening.py: guests-as-INT returns 422; batch tnc_accepted=false returns 400 with 'Please accept the Terms & Conditions…'; single & batch happy paths return refs matching BT-YYMMDD-XXXXXX and /bookings/{id} shows status=pending_artist, payment_status=token_paid. (5) Iter-58 anchor tests still 5/5 green.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "step-6 success (batch mode)",
+        "issues": ["'Artists in this Event' list on the batch success screen only shows the primary artist (Priya) — the secondary artist (Mohit) is not rendered because clearCart() empties extraArtists BEFORE step 6 renders. The Event Refs pill still shows both refs correctly, and both bookings exist server-side (verified via API), so it's a display-only miss. Recommend snapshotting cartItems into successData before clearCart()."]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter60_booking_hardening.py",
+    "/app/backend/tests/test_iter58_booking_payment.py",
+    "/app/test_reports/pytest/iter60.xml",
+    "/app/test_reports/iter60_single_success.png",
+    "/app/test_reports/iter60_batch_success.png",
+    "/app/test_reports/iter60_expiry.png"
+  ],
+  "action_items": [
+    "MINOR (not P0): On step-6 batch-success card, list ALL artists in the batch, not just the primary. Snapshot cartItems into successData before calling clearCart()."
+  ],
+  "critical_code_review_comments": [
+    "BookingFlow.jsx submitBooking() (iter 59.1) is the correct pattern: explicit commonFields, pre-submit /auth/me refresh with friendly toast, tnc_accepted forced true, guests coerced to string. Zero ...form spread — no more silent 422 from schema drift. This is the definitive shape.",
+    "The single anchor probe (await api.get('/auth/me')) plus the message-rewrite-only interceptor in api.js is the right minimal surface. The old iter-58-v1 auto-redirect regression cannot reappear.",
+    "MINOR: on batch success, `clearCart()` is called BEFORE step 6 renders, so `cartItems` on the success screen omits the secondaries. Fix: `setSuccessData({..., items: cartItems.map(...) })` then clearCart. Not blocking — refs are correct."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter60_booking_hardening.py (new)",
+    "/app/test_reports/iteration_60.json (new)",
+    "/app/test_reports/pytest/iter60.xml"
+  ],
+  "success_rate": {
+    "backend": "100% (9/9: 5 iter-58 anchor + 4 iter-60 new regressions)",
+    "frontend": "100% (3/3 P0 acceptance criteria: single happy-path, multi-artist batch happy-path, session-expiry graceful toast without redirect)"
+  },
+  "test_credentials": "customer@booktalent.com / Customer@123 (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "During test runs several confirmed bookings were created: single-artist BT-260727-1EA740 (Kavya, 7:00 PM, Grand Hyatt), batch bookings BT-260727-C6E7A0 & BT-260727-C14A90 (Priya + Mohit, 2026-07-27, Grand Hyatt Batch), and one additional single ref BT-260727-EAF0C3. Plus 3 pytest fixtures with prefix 'TEST Iter60'. None cleaned up (no bulk-delete endpoint).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iter 59.1 is FULLY VERIFIED — all three P0 failure modes (random login redirect, Not Authorized, spurious T&C error) are gone. The explicit-payload builder in submitBooking() is the source of truth. Regression coverage for schema drift lives in test_iter60_booking_hardening.py (guests-as-INT → 422). The batch-success screen shows Event Refs but the artists list only renders the primary (minor UI polish, not P0). ReviewStep (step 4) requires ticking TWO checkboxes: outstation-ack (auto-checked) + T&C declaration — both need to be checked before 'Proceed to Payment' enables. localStorage seed key for multi-artist cart: bt_event_cart_{primary_id} with value shape {items: [...secondaries], saved_at, primary_id}.",
+  "rca of the issue": "P0 root cause (across iters 58→59.1): a mix of (a) axios interceptor doing hard redirects on transient background 401s (fixed iter 58 v2), (b) ...form spread sending unexpected empty strings that tripped Pydantic 422s (fixed iter 58 v2 for travel_allowance), (c) batch path missing tnc_accepted true and legacy fields (fixed iter 59), (d) `guests` sent as int while schema expects string (fixed iter 59.1 by explicit .toString() coercion). Iter 59.1 additionally pre-flights /auth/me before POST /bookings so a truly expired session shows a friendly toast instead of a mid-flow 401 cascade — and does NOT auto-redirect. Verified on preview URL via UI + pytest regression suite."
+}

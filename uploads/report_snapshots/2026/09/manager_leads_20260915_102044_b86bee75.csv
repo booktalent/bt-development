@@ -1,0 +1,2 @@
+manager_id,manager_email,manager_name,total_leads,won,lost,in_pipeline,conversion_pct,stage_new_lead,stage_contacted,stage_requirement_received,stage_artist_suggested,stage_quotation_sent,stage_negotiation,stage_booking_pending,stage_booking_confirmed,stage_payment_pending,stage_event_upcoming,stage_event_completed,stage_closed,stage_lost_cancelled
+mgr-test-1,test-mgr@booktalent.com,Test Manager,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="14" time="4.939" timestamp="2026-07-16T17:37:25.466375+00:00" hostname="agent-env-fde111ca-c1ab-418e-9b25-fd4bafb6c4d9"><testcase classname="backend.tests.test_iter25_uploads.TestChunkedUploadE2E" name="test_full_flow_12mb_binary" time="1.639" /><testcase classname="backend.tests.test_iter25_uploads.TestImageThumbnail" name="test_jpeg_upload_produces_thumb" time="0.765" /><testcase classname="backend.tests.test_iter25_uploads.TestResumeAndIdempotent" name="test_status_and_idempotent_chunk" time="1.073" /><testcase classname="backend.tests.test_iter25_uploads.TestTenantIsolation" name="test_other_user_cannot_access" time="0.589" /><testcase classname="backend.tests.test_iter25_uploads.TestSizeCap" name="test_size_over_5gb_rejected" time="0.055" /><testcase classname="backend.tests.test_iter25_uploads.TestSizeCap" name="test_zero_size_rejected" time="0.058" /><testcase classname="backend.tests.test_iter25_uploads.TestSizeCap" name="test_negative_size_rejected" time="0.053" /><testcase classname="backend.tests.test_iter25_uploads.TestInvalidType" name="test_unknown_type_rejected" time="0.052" /><testcase classname="backend.tests.test_iter25_uploads.TestLegacyMedia" name="test_legacy_base64_upload_still_works" time="0.186"><failure message="requests.exceptions.JSONDecodeError: Expecting value: line 1 column 1 (char 0)">/root/.venv/lib/python3.11/site-packages/requests/models.py:1116: in json
+    return complexjson.loads(self.text, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/json/__init__.py:346: in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/json/decoder.py:337: in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/json/decoder.py:355: in raw_decode
+    raise JSONDecodeError("Expecting value", s, err.value) from None
+E   json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+
+During handling of the above exception, another exception occurred:
+backend/tests/test_iter25_uploads.py:330: in test_legacy_base64_upload_still_works
+    j = m.json()
+        ^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/requests/models.py:1120: in json
+    raise RequestsJSONDecodeError(e.msg, e.doc, e.pos)
+E   requests.exceptions.JSONDecodeError: Expecting value: line 1 column 1 (char 0)</failure></testcase><testcase classname="backend.tests.test_iter25_uploads.TestFeatured" name="test_featured_endpoint_returns_200" time="0.072" /><testcase classname="backend.tests.test_iter25_uploads.TestSprint1Regression" name="test_cities_up" time="0.058" /><testcase classname="backend.tests.test_iter25_uploads.TestSprint1Regression" name="test_search_ai_up" time="0.059" /><testcase classname="backend.tests.test_iter25_uploads.TestSprint1Regression" name="test_wallet_endpoint_auth" time="0.065" /><testcase classname="backend.tests.test_iter25_uploads.TestSprint1Regression" name="test_kyc_endpoint_up" time="0.060" /></testsuite></testsuites>

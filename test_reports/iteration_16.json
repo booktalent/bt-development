@@ -1,0 +1,59 @@
+{
+  "summary": "Deployment/packaging fix VERIFIED: requirements.txt is now public-PyPI installable (pip --dry-run in a scratch venv exits 0 with zero 'Could not find a version' errors); requirements-emergent.txt cleanly resolves emergentintegrations==0.2.0 with the Emergent extra-index-url. AI search fallback path was exercised end-to-end and works — endpoint returns HTTP 200 with a valid shape even when the query is nonsense or the primary AI path is bypassed. Two real bugs surfaced during this pass, one BLOCKER for the very fallback path the fix is trying to protect.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "/api/search/ai (regex fallback path)",
+        "issue": "BLOCKER for deployment story. Regex at iter11_routes.py:255-256 captures only the first 1-3 digits of a plain (no-comma, no-k-suffix) price. For the review's own probe 'Singer in Mumbai under 50000' the fallback returns max_price=500 instead of 50000. Pattern `\\d{1,3}(?:[,\\s]?\\d{3})*` never consumes the trailing '00'. On the user's VPS (where emergentintegrations is absent by design), a 50000 query silently filters at 500 and returns zero results. Fix: replace the price capture group with e.g. `((?:\\d[\\d,\\s]*))` and then strip separators before int(); or add `|\\d+` alternate.",
+        "priority": "CRITICAL"
+      },
+      {
+        "endpoint": "/api/search/ai (primary AI path — seed-data matching)",
+        "issue": "Review acceptance criterion #3 ('artists list should have at least one entry when a Mumbai Singer exists in seed data') FAILS. Query 'Singer in Mumbai under 50000' returns items=[], total=0 in this pod even though AI correctly parses filters {category=Singer, city=Mumbai, max_price=50000}. Seed data has 3 Mumbai profiles (Priya Sharma='Bollywood Vocalist', Dhiren Singh='Stand-up Comedian', plus 1 more) but none contain the literal string 'Singer'. The `$or` regex over stage_name/bio/tagline/category is too strict — a category alias table (Singer↔Vocalist, DJ↔Music Producer, Comedian↔Stand-up) or a fuzzy match is needed, otherwise the primary AI path is user-visibly broken for exactly the query the review chose as smoke-test.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": [
+      {
+        "endpoint": "/api/search/ai (response shape)",
+        "issue": "Review request says the response has keys `rationale` and `artists`; actual response uses `mode` and `items`. Not a defect per-se (the tests accept both), but front-end and downstream docs must be aligned. Please pick one contract."
+      },
+      {
+        "endpoint": "/api/healthz",
+        "issue": "Review request includes '/api/healthz returns 200' as a regression check, but no such route exists in the codebase — `curl /api/healthz` returns 404. `/api/` returns 200 with {ok:true}. Either add /api/healthz or remove it from the acceptance list."
+      }
+    ]
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iter16_deploy.py",
+    "/app/test_reports/pytest/iter16.xml"
+  ],
+  "action_items": [
+    "FIX regex price capture in iter11_routes.py line 255-256 so plain integers ≥4 digits (50000, 30000, 100000) parse correctly. Suggested pattern: `(\\d[\\d,\\s]*)\\s*(k|lakh|l)?` followed by the existing normalization.",
+    "FIX seed-data / matching: either broaden the $or terms with a category synonym map (Singer→[Singer,Vocalist,Bollywood], DJ→[DJ,Music Producer], Comedian→[Comedian,Stand-up]) OR update seed profiles' `category` field to contain the canonical alias. Currently 'Singer in Mumbai' returns 0 hits although Mumbai artists exist.",
+    "DECIDE response contract for /api/search/ai — pick `mode` vs `rationale`, `items` vs `artists`, and update either code or spec so they agree.",
+    "OPTIONAL: add a real GET /api/healthz endpoint (or remove from spec) — the review's regression checklist assumes one exists."
+  ],
+  "critical_code_review_comments": [
+    "iter11_routes.py at 322 lines is close to the 700-line ceiling; still OK but consider extracting the AI-search block into its own module — it's already re-implementing regex + Mongo query building that could be unit-tested in isolation.",
+    "The try/except at lines 214-238 catches bare `Exception` which is fine, but it should NOT swallow the ImportError silently at info level — currently logged as WARNING which is right; keep it that way.",
+    "Fallback regex duplicates ~40 lines of parsing logic that would belong in a tiny `parse_query.py` helper — makes unit-testing the very bug I found trivial.",
+    "The `keywords` field is stuffed into the OR-clause verbatim, so a query like 'Singer in Mumbai under 50000' searches for '$regex: Singer in Mumbai under 50000' — matches nothing. Strip stopwords or split on whitespace before OR-ing.",
+    "requirements.txt & requirements-emergent.txt split is clean and correctly documented — good work."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter16_deploy.py (new)"
+  ],
+  "success_rate": {"backend": "93% (13/14 tests passed; the 1 failure exposes the regex bug called out above)", "frontend": "n/a (backend-only iteration)"},
+  "test_credentials": "Used admin@booktalent.com / Admin@123 and customer@booktalent.com / Customer@123 from /app/memory/test_credentials.md — both logged in successfully.",
+  "seed_data_creation": "None — read-only tests.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Iteration 16 focused on the deployment/packaging fix. Key verified facts: (a) `pip install --dry-run -r /app/backend/requirements.txt` in /tmp/v works cleanly; (b) requirements-emergent.txt is a valid opt-in with the Emergent --extra-index-url; (c) /api/search/ai never 500s in either path; (d) iter11 CSV + ICS exports still green; (e) admin/customer logins still work. Open bugs: regex fallback captures only 3 digits of a plain integer price → returns wrong max_price. Also: primary AI path yields 0 results for 'Singer in Mumbai' due to seed-data mismatch (category='Bollywood Vocalist'). If E1 fixes the regex, re-run backend/tests/test_iter16_deploy.py::TestAISearchFallback::test_fallback_logic_when_key_missing — it must pass. If E1 adds the synonym map, /api/search/ai should return ≥1 artist for the review's smoke query.",
+  "rca_of_the_issue": {
+    "packaging_fix": "requirements.txt correctly no longer contains emergentintegrations or the litellm customer-assets wheel URL. Verified by grep + pip dry-run in a fresh venv. Optional file requirements-emergent.txt lists only emergentintegrations==0.2.0 and points docs at --extra-index-url https://d33sy5i8bnduwe.cloudfront.net/simple/ — resolves cleanly.",
+    "regex_fallback_bug": "Pattern `\\d{1,3}(?:[,\\s]?\\d{3})*` requires the trailing digit groups to be triples separated by comma/space. Input '50000' matches only '500'. Repro: python3 -c 'import re; print(re.search(r\"\\d{1,3}(?:[,\\s]?\\d{3})*\", \"50000\").group())' → 500. Mitigation: use `\\d[\\d,\\s]*` or add `|\\d+` alternate. This must be fixed before claiming the AlmaLinux/Hostinger VPS scenario is production-ready — that VPS will hit the fallback branch and silently filter at 500 INR.",
+    "matching_bug": "$or regex clauses look for the exact category token in stage_name/bio/tagline/category. Seed data uses genre-specific labels ('Bollywood Vocalist', 'Stand-up Comedian', 'DJ / Music Producer') which don't contain the AI-parsed generic token 'Singer'/'Comedian'/'DJ'. Fix by seeding aliases or adding a synonym-expansion step."
+  }
+}

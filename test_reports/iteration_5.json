@@ -1,0 +1,54 @@
+{
+  "summary": "Iteration 6 audit. Backend: 75/75 pytest pass (11 new iter6 + 64 regression iter1-4) after fixing one stale hard-coded event_date in legacy backend_test.py. Iter6 media features (Pillow compression, 400x400 thumb endpoint, PUT /media/{id} replace preserves id+featured, /media/{id}/feature toggle, /media/reorder persistence, 12MB cap, gallery_thumbs on /artists/featured + /artists/search) all VERIFIED. Frontend: Landing, Search, Artist Dashboard, Customer Dashboard, Admin Dashboard render cleanly with 0 console errors. ArtistDashboard Media Manager exposes ALL iter6 controls (feature-/replace-/move-left-/move-right-/del-media- data-testids) and the page now loads without the crash reported in iter4. Search and Landing cards use dynamic gallery thumbnails via pickArtistThumb (gallery_thumbs → profile_image fallback → emoji). Two real frontend bugs found: (1) AdminDashboard Quick Stats card renders ONLY labels with no values (Total Artists, Total Customers, Avg Rating, Bookings Today, Pending Bookings all blank), (2) media tile in Artist Dashboard renders an <img> for non-image, non-video, non-audio, non-pdf mimes (e.g. application/octet-stream blobs left over from prior runs) → broken-image icon shown. No backend crashes. Mock-mode Resend & Razorpay still behaving as documented.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/media/upload", "issue": "PNG→JPEG flatten happens unconditionally during compress_image (alpha channel discarded). Acceptable for portfolio photos but document this so artists with transparent logos know it."},
+      {"endpoint": "/api/media/{id}/thumb", "issue": "When media has no thumb (non-image), falls through to serving raw base64 with original mime. For an application/octet-stream document this returns a broken image to <img> tags. Either return 415 or return a generic doc icon."},
+      {"endpoint": "/api/media/reorder", "issue": "No bounds-check or validation on the ids array — silently no-ops on bad ids. Low impact."},
+      {"endpoint": "/api/media/{id}/feature", "issue": "Toggles only — there is no atomic 'set this one as the only featured' op. Two media can be featured simultaneously."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "AdminDashboard Overview", "issue": "Quick Stats section displays labels (Total Artists / Total Customers / Avg Rating / Bookings Today / Pending Bookings) but value placeholders are EMPTY — only the ★ glyph appears next to Avg Rating. Looks like the data-binding (probably stats.total_artists vs whatever key the API returns) is wrong.", "selector": "AdminDashboard Quick Stats card", "priority": "HIGH"},
+      {"component": "ArtistDashboard Media tile", "issue": "img tag is rendered for any mime that isn't video/* / audio/* / application/pdf — including application/octet-stream legacy uploads from earlier test runs → broken-image icon. Add an else-branch for unknown mimes (generic file icon) or filter the list to media.type === 'gallery' + mime.startsWith('image/').", "selector": "[data-testid^='media-tile-'] img", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "AdminDashboard", "issues": ["Quick Stats grid leaves an empty 6th slot — re-balance to 5-wide or hide empty cell"]},
+      {"screen": "ArtistDashboard Media grid", "issues": ["After 30+ uploads the grid gets visually noisy; pagination or per-section grouping would help"]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter6.py",
+    "/app/backend/tests/test_iter4.py",
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/full_iter5.xml",
+    "/app/test_reports/pytest/iter6_results.xml"
+  ],
+  "action_items": [
+    "Fix AdminDashboard Quick Stats value bindings — values render empty for Total Artists / Total Customers / Avg Rating / Bookings Today / Pending Bookings.",
+    "Handle non-displayable mimes (e.g. application/octet-stream) in ArtistDashboard media tile renderer with a fallback icon instead of broken <img>.",
+    "Recommended (low priority): expose an atomic 'set sole featured' endpoint so artists can't have multiple featured photos.",
+    "Recommended: /api/media/{id}/thumb should return 415 (or a generic doc placeholder) when the underlying media has no thumb, instead of streaming raw octet-stream bytes that the browser then tries to render as an image."
+  ],
+  "critical_code_review_comments": [
+    "server.py is 2413 lines — same recommendation as previous iterations: split into routers/ modules before iter7's Admin ERP + Boost + Notifications + Advanced Search lands (otherwise this hits 4k+ lines).",
+    "Iter6 media controls are correctly wired with explicit data-testids in ArtistDashboard.jsx (feature-/replace-/move-left-/move-right-/del-media-) — good for future automated regression.",
+    "image_service.compress_image converts PNG→JPEG silently — for portfolio photos this is fine but should be documented in the upload UX so artists know their alpha channel will be flattened on white.",
+    "pickArtistThumb in /app/frontend/src/lib/api.js uses Math.random per-render — every React re-render flips the picture which can be jarring on a card hover. Memoize per artist id.",
+    "Legacy uploads from earlier test runs accumulate in db.media for priya (37+ items) — main agent should add a periodic test-data sweep helper (db.media.deleteMany({title: /^TEST_/})) and document it in test_credentials.md."
+  ],
+  "updated_files": [
+    "/app/backend/tests/backend_test.py (line 268: replaced hard-coded 2027-12-20 with timestamp-derived date so booking-create setup stops colliding with priya's blocked-calendar)",
+    "/app/backend/tests/test_iter6.py (NEW — 11 iter6-specific tests covering compression, thumb, replace, reorder, feature, gallery_thumbs, 12MB cap, bad-data-url)"
+  ],
+  "success_rate": {"backend": "100% (75/75 = 11 iter6 + 64 regression)", "frontend": "85% — all five dashboards load with zero console errors; iter6 media controls all wired correctly; 2 real UI bugs documented above"},
+  "test_credentials": "Admin admin@booktalent.com/Admin@123, Customer customer@booktalent.com/Customer@123, Artist priya@booktalent.com/Artist@123, Email & Payment OTP (mock) 123456 — all verified working.",
+  "seed_data_creation": "Iter6 tests upload TEST_iter6_* media as priya. All 'TEST_iter6_' titled media were programmatically removed at end of run via mongosh `db.media.deleteMany({title:/^TEST_iter6_/})`. Older TEST_5mb / TEST_iter4_* artefacts from prior testing agents still persist in db.media — recommend a one-off sweep.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iter6 media stack is functionally complete on both backend and frontend (all data-testids present, all 11 iter6 endpoints pass pytest). The two remaining bugs are pure frontend: (a) AdminDashboard Quick Stats values not rendering (likely a key mismatch with whatever /api/admin/stats returns — verify the response shape vs the JSX bindings); (b) ArtistDashboard media tile uses bare <img> for unknown mimes — add a generic file fallback. Once those two are fixed, iter6 is fully signed off and main agent can proceed to iter7 (Admin ERP, Boost, Smart Notifications, Advanced Search). Backend pytest baseline now lives at /app/test_reports/pytest/full_iter5.xml. Use that as the gate before any iter7 merge.",
+  "rca of the issue": "AdminDashboard empty Quick Stats: most likely the React component reads stats.totalArtists / stats.avgRating (camelCase) while /api/admin/stats endpoint returns total_artists / avg_rating (snake_case) — or the endpoint is not yet implemented and stats is undefined, in which case the JSX should default to '—'. Needs a direct inspection of GET /api/admin/stats response vs AdminDashboard's stats reader. Media broken-image RCA: ArtistDashboard.jsx:597-608 enumerates video/audio/pdf branches and falls through to <img src=…/thumb> for the 'else' case; legacy 0-byte test uploads have mime='application/octet-stream' and no generated thumb (image_service.make_thumbnail returns None for non-images), so /api/media/{id}/thumb falls back to streaming the original bytes with octet-stream content-type → browser shows broken image. Fix is either (a) frontend: add an else branch for unknown mimes that renders a generic file glyph, or (b) backend: have /thumb return 415 for non-image media so the <img> at least gets a proper failure."
+}

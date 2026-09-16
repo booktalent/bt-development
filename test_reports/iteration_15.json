@@ -1,0 +1,45 @@
+{
+  "summary": "Iter 15 BUG-FIX VERIFICATION (Legacy Chat Unlock) — PASSED. Backend pytest: 24/24 green in 6.7s including 11 LegacyChatUnlock cases (access endpoint, REST GET/POST messages, WS handshake to /api/ws/chat/{bid} as both customer and artist, chat_upload guard) on legacy booking IDs 07835a9d-e38a-481e-97ac-16d74c12760d and 17ce166d-1f7b-4fc1-bd7c-e3192fbccb9b (both have payment_status field MISSING and status='pending_artist'). UnpaidStillLocked (4 cases) and PaidStillUnlocked (2 cases) confirm regressions are clean. Iter 11-14 endpoints (AI search, ICS, customer/admin CSVs, wallet, coupons, KYC) still 7/7 green. Frontend E2E (Playwright as priya@booktalent.com) traversed all 57 of Priya's bookings: 29 rows show '💬 Chat' (enabled) and 28 show '🔒 Pay to Unlock Chat' (disabled) — confirms the legacy-aware logic in BookingsTable. Clicked legacy booking 07835a9d ('Awaiting artist' status, no payment_status) → ChatBox modal mounted (data-testid=chat-box), data-testid=chat-status flipped to '● Live' with class 'pill pill-green', chat-input visible, test message 'TEST_iter15 hello from playwright' was POSTed and visible in chat-messages. Bug fix is fully effective across REST, WebSocket, file-upload guard, and UI.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "ArtistDashboard / CustomerDashboard — Bookings tab",
+        "issues": [
+          "Chat modal positioning: when the bookings list is scrolled deep (Priya has 57 rows, so the user is often scrolled hundreds of pixels down), clicking '💬 Chat' on a lower row applies the modal-bg dim overlay but the modal-card (ChatBox 520px tall) does not get visually pinned into the current viewport in the captured screenshots — the modal is functional (DOM mounted, WS handshakes, messages send) but the user may perceive 'a faded/empty screen for a long time' as originally reported. Recommend: window.scrollTo(0,0) when opening the chat modal, OR make the modal-bg flex-center its modal-card with position:fixed; inset:0; instead of relying on page flow. This matches the original user report symptom; the data-layer is now fixed but the visual landing of the modal may still surprise users."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter15.py",
+    "/app/test_reports/pytest/iter15_results.xml"
+  ],
+  "action_items": [
+    "Optional UX: scroll-to-top (or use position:fixed flex-centered modal) when opening ChatBox so users on a long bookings list immediately see the chat. Backend fix is complete and verified.",
+    "Consider aligning the FRONTEND chat-unlock predicate with the BACKEND one for an edge case (see code-review comment) — bookings with payment_status='unpaid' BUT status not in ('pending_payment') are treated as UNLOCKED by backend (status-driven path) but LOCKED by frontend (because isUnpaid stays true). Today there exist confirmed-status rows with payment_status='unpaid' (e.g. 2a277b6a-04e6-40a2-b48d-8c20377ef943) — user could not initiate chat in UI yet backend would allow it via direct REST/WS. Decide canonical behaviour and align."
+  ],
+  "critical_code_review_comments": [
+    "Backend _is_chat_unlocked() in chat_routes.py (lines 133-149) correctly returns True if (payment_status truthy AND != 'unpaid') OR (status truthy AND != 'pending_payment'). Symmetric guard duplicated in iter9_routes.py chat_upload (line 362) — works but the duplication invites drift; consider extracting and importing.",
+    "Frontend BookingsTable predicate (CustomerDashboard.jsx line 232): `isUnpaid = ps === 'unpaid' || ps === undefined && isPendingPayment` is correct for legacy rows (ps undefined && status non-pending → unlocked). However for ps='unpaid' + status NOT 'pending_payment' (rare but exists today, e.g. 2a277b6a…) the frontend still locks the button while the backend permits chat — minor frontend/backend divergence. Either drop the explicit `ps === 'unpaid'` clause OR also drop the status fallback on backend so both sides agree.",
+    "Chat modal mount: setChatBooking(b) toggles the modal but does NOT scroll the page to top. With 57 bookings in Priya's list, clicking a chat button after scrolling down can mount the modal beyond the visible viewport (modal-bg appears as a dim overlay only). Suggest: window.scrollTo({top:0,behavior:'smooth'}) on open, or restyle .modal-bg to flex-center its child.",
+    "Defensive: chat_access endpoint returns payment_status='unpaid' even for legacy rows where the DB field is genuinely absent — fine for UI, but downstream analytics/CSV might misclassify legacy as unpaid. Consider returning 'legacy' or null explicitly.",
+    "Test seed pollution: there are now thousands of TEST_* prefixed bookings in the database from Iter4-15. Add a periodic cleanup or a `pytest` teardown that purges TEST_* artefacts. Out of scope for this iteration but accumulating."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter15.py (created)",
+    "/app/test_reports/pytest/iter15_results.xml (generated)",
+    "/app/test_reports/iter15_artist_dash.png (Priya dashboard overview)",
+    "/app/test_reports/iter15_chat_modal.png (chat opened on legacy booking 07835a9d)",
+    "/app/test_reports/iter15_chat_live.png (after message send)"
+  ],
+  "success_rate": { "backend": "100% (24/24)", "frontend": "100% (legacy chat opens, goes Live, sends/receives)" },
+  "test_credentials": "customer@booktalent.com/Customer@123, priya@booktalent.com/Artist@123, admin@booktalent.com/Admin@123, corporate@booktalent.com/Corporate@123 — all working",
+  "seed_data_creation": "Sent TEST_iter15-legacy-artist (REST as Priya), TEST_iter15-legacy-customer (REST as corporate@), and 'TEST_iter15 hello from playwright' (UI WS) on legacy booking 07835a9d-e38a-481e-97ac-16d74c12760d. No business-state mutation.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Legacy chat unlock now verified end-to-end. /app/backend/tests/test_iter15.py is the new baseline — parametrized over LEGACY_BIDS list at top of file so additional legacy bookings can be added easily. Mongo only has 2 legacy bookings without payment_status field today; both belong to corporate@booktalent.com (customer) and Priya (artist), both with status='pending_artist'. Stable IDs: PAID=cca6a262-…-21dc13d52c7, UNPAID=060a549a-…-422210ee501e, LEGACY1=07835a9d-…-16d74c12760d, LEGACY2=17ce166d-…-e3192fbccb9b. Frontend localStorage JWT key stays 'bt_token'. WS URL pattern unchanged: wss://<host>/api/ws/chat/{bid}?token=<jwt>. Note frontend/backend slight divergence for ps='unpaid'+non-pending-payment status (see action_items #2).",
+  "rca of the issue": "ROOT CAUSE: Legacy bookings created before the iter10/iter12 payment_status migration have NO payment_status field. The old predicate `payment_status && payment_status !== 'unpaid'` was AMBIGUOUS for undefined values: backend was returning {enabled:false} → REST/WS returned 403/4402 → ChatBox.jsx mounted, GET /access showed 'locked' card, but for legacy rows the BookingsTable button was ALREADY disabled so the modal opened empty (just the modal-bg dim) producing the 'faded screen' UX. REPRODUCTION (pre-fix): login as priya, scroll to a row whose status is 'Awaiting artist'/'Completed' but has no payment_status in Mongo, click 💬 Chat → modal opens, GET /api/chat/{bid}/access returns enabled:false, ChatBox shows the lock card OR the button was disabled and modal showed nothing → user perceives 'faded screen for a long time'. FIX: _is_chat_unlocked() in chat_routes.py and chat_upload guard in iter9_routes.py now also unlock when status has moved past 'pending_payment'. Frontend BookingsTable predicate aligned: chatUnlocked = !isPendingPayment && !isUnpaid where isUnpaid only includes undefined when status is pending_payment. VERIFICATION: 24/24 backend tests pass; Playwright confirms legacy booking 07835a9d opens chat modal that flips to '● Live' (pill-green) within 1s, send/receive functional. Outstanding minor UX issue (modal-positioning when bookings list is scrolled down) flagged in design_issues — fix is one-liner: window.scrollTo(0,0) on setChatBooking."
+}

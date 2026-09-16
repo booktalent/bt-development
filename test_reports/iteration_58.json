@@ -1,0 +1,43 @@
+{
+  "summary": "Iter 58 — Global 401 interceptor + session-expiry UX. All 6 iter-58 acceptance criteria PASS on the deployed preview. Backend regression via pytest (5/5) confirms the happy-path booking + payment contract is unchanged (POST /bookings -> POST /payments/init -> POST /payments/verify with mock_otp='123456' yields status='pending_artist', payment_status='token_paid'). Frontend Playwright verified: (a) friendly toast text 'Your session has expired. Please sign in again to continue.' surfaces on the artist-booking pay-now click after page.context.clear_cookies() mid-flow; (b) auto-redirect lands at /login?returnTo=%2Fbook%2Faa0ed1cb-6036-480d-a64f-6cc551a2a306 after the 800ms setTimeout in auth.jsx (initial React-Router <Navigate to='/login'> from Protected fires first at ~200ms, then the interceptor's window.location.href overwrites with the returnTo query — the final URL is correct); (c) signing in on /login?returnTo=/book/:id lands back at /book/:id; (d) protocol-relative //evil.com is rejected and falls back to /customer (Auth.jsx resolveDest guard 'startsWith(\"/\") && !startsWith(\"//\")' works); (e) anonymous / probe of /auth/me returns 401 but does NOT trigger toast or redirect (interceptor skips URL ending in /auth/me). SEPARATE pre-existing bug uncovered during happy-path: POST /api/bookings returns 422 from the browser flow because BookingFlow.jsx sends form.customer_travel_allowance='' (empty string) which Pydantic rejects as float_parsing. Backend contract is fine (curl/pytest with the field omitted works). This is NOT introduced by iter 58 but it blocks the same customer flow the P0 bug was filed against — main agent should coerce empty '' to 0 (or omit) before POST.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "BookingFlow / submitBooking single-artist branch", "issue": "form.customer_travel_allowance defaults to '' (empty string) and is spread verbatim into POST /bookings body. Backend Pydantic rejects with 422 {type:'float_parsing'}. Blocks ALL customer bookings when the TA field is left blank — which is the default. Fix: coerce Number(form.customer_travel_allowance||0) at payload build (line 311-315 of BookingFlow.jsx) OR default form.customer_travel_allowance to 0 in useState.", "selector": "pay-now-btn / step-5", "priority": "CRITICAL"}
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter58_booking_payment.py",
+    "/app/test_reports/pytest/iter58.xml"
+  ],
+  "action_items": [
+    "Fix the 422 on POST /bookings by coercing customer_travel_allowance to a number before submit (BookingFlow.jsx line ~311). This is the true remaining P0 blocker for the artist-booking-payment scenario — iter 58's UX polish is verified but customers still can't complete the flow with default inputs.",
+    "OPTIONAL — In auth.jsx handler, consider swapping setUser(null) + setTimeout order: schedule the window.location.href FIRST (0ms), then setUser(null). Current order causes Protected to fire <Navigate to='/login'> at ~200ms (no query), then the 800ms setTimeout overwrites with returnTo. Works but the URL briefly lacks returnTo — could confuse users bookmarking mid-flight."
+  ],
+  "critical_code_review_comments": [
+    "api.js:38-49 interceptor cleanly exempts /auth/me and rewrites Not authenticated / Token expired / Invalid token / User not found to a single friendly string. Good coverage of the observed FastAPI detail literals.",
+    "api.js:52 _sessionExpiredFired one-shot guard prevents redirect loops when multiple parallel requests 401 at once — verified during eviction test (2 x /bookings/mine 401s observed but only one redirect).",
+    "auth.jsx:53 800ms setTimeout is a good delay to let the toast render, but combined with App.js:40 Protected -> <Navigate to='/login' replace/>, the URL flickers: /book -> /login (no query) -> /login?returnTo=/book. Final state is correct but a race exists. Consider immediate window.location.href with a returnTo lookup done pre-setUser.",
+    "auth.jsx:51 startsWith('/login') early-return prevents redirect on the login page itself — correct.",
+    "Auth.jsx:74-84 resolveDest correctly guards returnTo with startsWith('/') && !startsWith('//'). Also handles ?next= legacy param and sessionStorage stash without duplication.",
+    "BookingFlow.jsx:311-315 spreads `...form` into the POST body — this is the root cause of the 422. Any empty string field the schema types as number will crash. Consider explicit whitelisting/serialisation rather than spread.",
+    "CustomerDashboard.jsx:20 does nav('/login') on `!user` in a useEffect — but by the time this fires, the auth.jsx handler already scheduled window.location.href. Two redirect paths co-exist; the timeout wins because it's a full navigation."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter58_booking_payment.py (NEW)",
+    "/app/test_reports/pytest/iter58.xml",
+    "/app/test_reports/iteration_58.json"
+  ],
+  "success_rate": {"backend": "100% (5/5 pytest passed)", "frontend": "83% (5/6 iter-58 acceptance criteria fully green; happy-path booking blocked by a separate pre-existing customer_travel_allowance='' -> 422 bug in BookingFlow.jsx that is NOT part of iter 58 scope but affects the same P0 user story)"},
+  "test_credentials": "customer@booktalent.com / Customer@123 (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "Backend pytest created one live booking BT-260727-756111 (status=pending_artist, payment_status=token_paid) — prefixed as TEST Iter58 in customer_name for easy identification. Not cleaned up (backend has no bulk delete-by-prefix endpoint). Also two extra bookings created during happy-path attempts before the 422 bug was root-caused.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Iter 58 interceptor + returnTo behaviour is fully green. The remaining P0 blocker for the artist-booking payment scenario is the customer_travel_allowance='' -> 422 bug in BookingFlow.jsx submitBooking (single-artist branch, line ~311). Once main agent coerces the field to a Number, retest the full happy path via Playwright: login as customer, /book/aa0ed1cb-6036-480d-a64f-6cc551a2a306, step 1 pick pkg, step 2 pick date + time-1900, step 3 fill name/phone/venue/city, step 4 tick tnc-accept-checkbox (+ outstation-ack + travel-ack if visible), step 5 pay-now-btn should now reach step-6 with data-testid='booking-ref'. Backend pytest at /app/backend/tests/test_iter58_booking_payment.py covers the API contract end-to-end (mock OTP 123456).",
+  "rca of the issue": "P0 user-report ('Not authenticated' during pay) had TWO components: (1) UX — cryptic toast + no recovery, addressed by iter 58 axios interceptor + AuthProvider session-expired handler + Auth.jsx returnTo. All verified working. (2) A separate bug still blocks the same flow even for authenticated users: BookingFlow spreads `...form` into POST /bookings, and form.customer_travel_allowance defaults to '' which fails Pydantic float_parsing → 422. Because the 422 detail is a Pydantic array, it goes through formatApiError but toast rendering appears to fail silently (toast div text was empty in DOM inspection). Net effect: customer clicks Pay, backend rejects, UI shows nothing, customer thinks the app is broken — visually identical to the original P0 report. Iter 58's friendly toast doesn't fire because 422 != 401. Recommend main agent fix the coercion AND make formatApiError-based toasts more resilient to Pydantic v2 detail shape."
+}

@@ -1,0 +1,38 @@
+{
+  "summary": "Iter 89 fully tested. Backend: 20/20 pytest passed (test_iter89.py) covering WA templates PATCH+status/mapping storage, manager leaderboard admin+manager+customer(403)+bad-month, Slack test mock mode, report snapshots run-now+list+download+delete+404+403, and Iter88 regression (payout queue, report schedules, scorecard, WA status). Also directly invoked slack_alert_max_retries() and confirmed slack_logs row is persisted with mock=True, sent=True and correct alert text. Frontend: /manager/leaderboard renders manager-leaderboard, lb-title, lb-my-rank ('You're ranked #1 out of 1'), lb-podium, lb-table with 'YOU' highlight. btn-leaderboard present on /manager. /admin?tab=wa-templates renders admin-wa-templates with 6 wa-tpl-input-<event> rows and wa-tpl-save. /admin?tab=report-snapshots renders admin-report-snapshots with snap-filter-kind, snap-row-<id>, snap-dl-<id>, snap-del-<id>.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/manager/leaderboard", "issues": ["Rupee glyph in Revenue cell renders as 'to' on podium & table (likely a font-fallback issue with the ₹ character or serif font not loading the U+20B9 glyph). Compare to other admin pages that show ₹ correctly. Cosmetic only, does not block functionality."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter89.py",
+    "/app/test_reports/pytest/iter89_results.xml"
+  ],
+  "action_items": [
+    "Cosmetic: investigate ₹ glyph rendering on /manager/leaderboard cards (may need to ensure the currency symbol falls back to a system font, or use 'INR' text)."
+  ],
+  "critical_code_review_comments": [
+    "iter89.py notify_slack sets sent=True even in mock mode which is fine for callers, but 'sent:true, mock:true' can be misleading in dashboards; consider a distinct field like 'delivered' vs 'accepted'.",
+    "iter89.py manager_leaderboard imports routes.iter88.make_iter88_router just for a 'noqa side-effect' — the import is dead code, remove it.",
+    "iter89.py manager_leaderboard: revenue computation reads bookings with event_date string range using ISO date YYYY-MM-DD; works only because event_date is stored as ISO strings. Add a comment/assertion, or switch to real date field for future-proofing.",
+    "iter89.py save_snapshot: no size cap — a malicious/oversized CSV can fill disk. Add a MAX_CSV_BYTES guard (e.g., 50MB).",
+    "iter89.py delete_snapshot: if the file was already deleted from disk, unlink runs missing_ok=True — good; but response is still {ok:true} regardless of whether Mongo row existed after 404 check. OK.",
+    "iter89.py download_snapshot returns 410 when file missing on disk but Mongo row exists — good; consider auto-cleanup of stale Mongo row in that path.",
+    "Test-mgr placeholder-hash user from Iter 88 was un-loggable; testing agent updated password_hash to real bcrypt('Manager@123') so leaderboard 'is_me' path could be tested."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter89.py",
+    "/app/memory/test_credentials.md"
+  ],
+  "success_rate": {"backend": "100% (20/20)", "frontend": "100%"},
+  "test_credentials": "admin@booktalent.com/Admin@123, customer@booktalent.com/Customer@123, test-mgr@booktalent.com/Manager@123 (password set by this iteration; recorded in /app/memory/test_credentials.md)",
+  "seed_data_creation": "Updated existing user id=mgr-test-1 (test-mgr@booktalent.com) to have real bcrypt hash + email_verified=true + is_active=true so manager login works for leaderboard tests. Also set monthly_lead_target=20, monthly_revenue_target=500000 via prior iter88 tests. Created + deleted a report snapshot during tests (no residue).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iter 89 all green. Test file at /app/backend/tests/test_iter89.py — WA templates PATCH persisted mapping under platform_settings.mapping sub-doc; status endpoint reads it correctly. Manager leaderboard uses test-mgr@booktalent.com (id=mgr-test-1) — only 1 manager exists so rankings are trivial (rank=1). To exercise podium/tie-breakers, seed 2+ more managers with revenue in confirmed/completed bookings. Slack has no webhook — everything returns mock:true. slack_alert_max_retries directly invokable via python (imports fine). Report snapshots dir: /app/uploads/report_snapshots/<yyyy>/<mm>/*.csv.",
+  "rca of the issue": "N/A — no failures."
+}

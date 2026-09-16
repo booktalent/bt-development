@@ -1,0 +1,47 @@
+{
+  "summary": "Iter 51 — Security-hardening audit (cookie-only auth + ffmpeg subprocess path allow-list). Backend: 20/20 iter51 tests + 19/19 iter30 cookie-auth regression suite → 39/39 green. Verified: (1) POST /auth/login returns {token,user} AND sets access_token cookie with HttpOnly + Secure + SameSite=Lax + Max-Age=604800 + Path=/. (2) POST /auth/register with a NEW email (after email-OTP verify prerequisite) also sets the same httpOnly cookie. (3) GET /auth/me works with cookie only (no Authorization header) and returns 401 without any auth. (4) POST /auth/logout clears the cookie (Max-Age=0). (5) POST /auth/otp/verify with mock 123456 sets cookie when the phone maps to an existing user. (6) WebSocket /api/ws/chat/{bid} accepts cookie-only auth (browsers send same-origin cookies with WS handshakes) and closes 4001 on no-auth; legacy ?token= still works. (7) /api/bookings/{id}/invoice reachable with cookie only, returns 401 with no auth. (8) POST /api/uploads/init | PUT /uploads/{id}/chunk | POST /uploads/{id}/complete all accept cookie auth (no 401). (9) POST /api/media/upload with a real ffmpeg-generated 2.4MB test-pattern mp4 returns video_compressed=true — proves the new path allow-list inside _run_ffmpeg does NOT reject legitimate tempfile paths (tempfile.gettempdir() is in the allow-list). (10) All regression endpoints 200: /artists/search, /homepage/spotlight, /settings/public, /faqs/search, /event-planner/suggest. Frontend: landing loads, login modal on landing works, after customer@booktalent.com login the dashboard shows 182 bookings + 3 completed + 15 upcoming with Cancel/Invoice/Chat actions, DevTools cookie 'access_token' is present with HttpOnly+Secure+SameSite=Lax+7d expiry, localStorage.bt_token is null both PRE and POST login AND after hard refresh. Session persists across page reload — primary regression risk of the migration is cleared.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "N/A", "issue": "CORS config in server.py L90-91 uses allow_origins=['*'] + allow_credentials=True which is invalid per the CORS spec (browsers ignore Access-Control-Allow-Origin: * when the request has credentials). Same-origin deploys (Emergent preview + user's VPS via nginx) make this a non-issue in practice, but if the app is ever accessed cross-origin (e.g., a separate api.booktalent.com from booktalent.com) cookies will silently drop. Pin allow_origins to the explicit hostname list read from CORS_ORIGINS env."},
+      {"endpoint": "/api/media/upload (validation error path)", "issue": "When a client POSTs multipart form-data instead of the required JSON body, FastAPI's default RequestValidationError handler crashes with UnicodeDecodeError while trying to JSON-encode the raw bytes back into the 422 response. Ends up as a 500 to the client instead of a 422. Pre-existing bug, unrelated to Iter 51 changes. Fix: use a custom exception handler that strips bytes from exc.errors() before jsonable_encoder."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter51_cookie_auth_security.py",
+    "/app/test_reports/pytest/iter51_run.xml"
+  ],
+  "action_items": [
+    "OPTIONAL: replace CORS allow_origins=['*'] with an explicit host list so cross-origin cookie auth doesn't silently break in future deploy topologies.",
+    "OPTIONAL: add a validation exception handler that scrubs bytes fields so accidental multipart-instead-of-json calls to /media/upload return 422 instead of 500."
+  ],
+  "critical_code_review_comments": [
+    "backend/video_compression.py L33-58 — the new path allow-list works correctly with tempfile.gettempdir() (verified via the end-to-end video upload test). One nit: `startswith(tmp_root)` and `startswith(media_root)` can be tricked by a symlink or by a path that shares a common prefix (e.g., /tmp-evil/foo would pass if tmp_root=/tmp). Defense-in-depth: use os.path.commonpath([abs_p, tmp_root]) == tmp_root and require abs_p != tmp_root (i.e., strictly inside). Low risk given this is called only from inside the compression pipeline with tempfile.mkstemp-generated paths.",
+    "backend/chat_routes.py L239-256 — cookie fallback logic is clean: `auth_token = token or websocket.cookies.get('access_token')`. Note that WebSocket cookies come from the raw handshake headers so this works out-of-the-box on Starlette/FastAPI. Verified live via cookie-only WS connect test (opened successfully, received presence event).",
+    "backend/server.py L149-163 — get_current_user reads Bearer OR cookie in that order. Correct precedence — a valid Bearer overrides the cookie which is what you want during token rotation.",
+    "frontend/src/lib/auth.jsx — the useEffect on mount both wipes leftover bt_token AND calls /auth/me to derive session. This is the single-source-of-truth pattern and matches the httpOnly-cookie migration guidance. useMemo on ctxValue is a nice touch — prevents needless re-renders of consumers.",
+    "frontend/src/lib/api.js L15-23 — withCredentials:true on the axios client instance is all that's needed given API base is the relative path '/api' (same origin). Correct migration; no Bearer header interceptor remaining anywhere in the frontend (grep verified no Authorization Bearer or bt_token reads outside the migration cleanup comment).",
+    "frontend/src/components/ChatBox.jsx L57-68 — WS URL no longer carries ?token= but relies on window.location.host + same-origin cookie. Verified working in both directions (cookie-only AND legacy ?token= for older clients).",
+    "frontend/src/pages/CustomerDashboard.jsx L191 + BookingFlow.jsx L739 — both PDF downloaders swapped Bearer for credentials:'include'. Confirmed via backend test that /bookings/{id}/invoice accepts cookie auth (not 401)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter51_cookie_auth_security.py (NEW — 20 tests across TestLoginCookie[3], TestRegisterCookie[1], TestAuthMe[2], TestLogout[1], TestOtpVerifyCookie[1], TestChatWebSocket[3], TestPdfInvoiceCookieAuth[2], TestChunkedUploadsCookieAuth[1], TestVideoCompressionEndToEnd[1], TestRegressionEndpoints[5])",
+    "/app/test_reports/pytest/iter51_run.xml (JUnit output)",
+    "/app/test_reports/iteration_51.json"
+  ],
+  "success_rate": {
+    "backend": "100% (20/20 iter51 + 19/19 iter30 regression = 39/39)",
+    "frontend": "100% (landing + login modal + cookie set with correct flags + localStorage.bt_token never present + dashboard renders bookings + session persists across hard refresh)"
+  },
+  "test_credentials": "customer@booktalent.com / Customer@123 (dashboard smoke + login/logout/me/invoice/WS); priya@booktalent.com / Artist@123 (uploads/init + media/upload video compression + otp verify); admin@booktalent.com / Admin@123 (implicit via regression suite). Mock OTP 123456 for both email and phone verification.",
+  "seed_data_creation": "1 fresh customer registered via /auth/email/send + /auth/email/verify + /auth/register with random TEST_iter51_<hex>@booktalent.com. 1 upload session (~1KB image bytes) and 1 media doc (~2.4MB test-pattern mp4 titled TEST_iter51_bigvid) inserted under priya. All TEST_-prefixed and safe to leave in place.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iter 51 is GREEN. Cookie-only auth end-to-end validated in both REST (Bearer removed, only withCredentials on axios) AND WebSocket (browsers send same-origin cookie on the handshake automatically, backend prefers cookie over ?token=). Two pre-existing minor infra items surfaced but out-of-scope for this iteration's security work: (a) CORS allow_origins='*' + allow_credentials=True is spec-invalid though harmless for same-origin deploys, (b) /media/upload's 422 path 500's due to bytes-in-validation-error JSON encoding — reproducible by posting multipart instead of a data_url JSON body. Both logged in backend_issues.minor. Video compression path allow-list (the other P0 hardening) works correctly with tempfile-mkstemp paths and rejects nothing legitimate — the ffmpeg pipeline still runs end-to-end and flips video_compressed=true.",
+  "rca_of_the_issue": "N/A — no bugs found in this iteration's changes. The two minor issues logged predate Iter 51 and are annotated as pre-existing."
+}

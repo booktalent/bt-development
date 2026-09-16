@@ -1,0 +1,36 @@
+{
+  "summary": "Iter 49 backend+frontend validation of Interactive Dynamic Artist Onboarding rewrite. Backend: 15/15 pytest green — universal returns 63 questions across 10 sections with exact PRD counts (Tell us about yourself 12, Performance Packages 1, Travel 13, Technical Requirements 12, Performance 8, Hospitality 1, Commercial 9, Event Types 1, Legal 5, Availability 1); /questionnaire/categories returns all 12 new categories with legacy empty slugs excluded; DJ/Singer/Celebrity Layer 2 shapes verified incl. show_if on team_size; artist can POST+GET answers, customer gets 403 Artist only; admin PUT override wins over hardcoded seed and cleanup restores seed. Frontend: wizard mounts via sb-questionnaire, Section 1 renders q-stage_name/q-category/q-languages-Hindi; on Commercial step q-min_booking_amount is inside .q-price wrapper with ₹ prefix, q-late_night-yes/no toggle chips render, q-late_night_after is hidden BEFORE toggle and appears as type=time input AFTER (show_if verified); Availability step renders .q-info notice block only (no input for availability_calendar). Regressions: /discover route alias renders 17 artist cards, Landing hero-planner-strip present, no Counter Offer UI in codebase.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter49_questionnaire.py",
+    "/app/test_reports/pytest/iter49_run.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "routes/questionnaire.py — clean 359-line seed-driven module. UNIVERSAL_QUESTIONS[63] and CATEGORY_QUESTIONS[12+6 deprecated] structure matches PRD 1:1. list_categories() correctly filters seeded {k for k,v if v} to hide empty legacy slugs while preserving them for existing answer reads. Admin override is upsert-only (no DELETE endpoint) but the empty-list PUT falls back to seed thanks to `override.get('questions')` truthy check — this is the intended cleanup pattern and works idempotently.",
+    "QuestionnaireWizard.jsx — clean type-driven renderer. show_if handler supports both scalar and array expected values plus category shortcut. Cannot forward-jump via step dot click (i <= stepIdx guard) — intentional gating so users don't skip validation. New types (toggle/price/time/date/file/info) render with tasteful styling and proper data-testids (q-{id} for inputs, q-{id}-yes/no for toggles, q-{id}-{option} for multiselect chips).",
+    "No `required: true` flag is set on any Universal or Category question in this iteration's seed — Save & Continue advances unconditionally. That matches the PRD ('answers save as you go, artist never loses progress') but callers who rely on `missing` validation should be aware."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter49_questionnaire.py (new — 15 tests: 4 universal shape, 2 categories list, 2 DJ, 2 Singer, 2 Celebrity, 2 answer persistence + auth, 1 admin override + cleanup)",
+    "/app/test_reports/pytest/iter49_run.xml (JUnit output)"
+  ],
+  "success_rate": {
+    "backend": "100% (15/15)",
+    "frontend": "100% (wizard mounts, all Section 1 selectors present, price wrapper + ₹ prefix, toggle chips, show_if skip-logic verified live, .q-info notice block, no availability_calendar input, /discover alias, hero-planner-strip, no Counter Offer UI)"
+  },
+  "test_credentials": "priya@booktalent.com/Artist@123 (artist), customer@booktalent.com/Customer@123 (customer 403 test), admin@booktalent.com/Admin@123 (admin override CRUD)",
+  "seed_data_creation": "None persistent. Test artist submits TEST_iter49_* prefixed answer keys (merged into priya's artist_profiles.answers map — harmless). Admin override on cat:DJ is added then reset to empty list which falls back to hardcoded seed, keeping tests idempotent.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iter 49 is GREEN end-to-end. Layer 1 (universal) has exactly 63 questions across 10 sections; Layer 2 has 12 modern categories + 6 legacy empty slugs preserved for read-back but hidden from /categories listing. QuestionnaireWizard sidebar tab is data-testid=sb-questionnaire on ArtistDashboard. To reach step N in the wizard, click [data-testid=q-next] N times — forward step-dot navigation is disabled by design. `show_if:{late_night:True}` gates late_night_after (time input) and late_night_extra (price input) on the Commercial section. New price wrapper is `<div class='q-price'><span class='q-price-prefix'>₹</span><input type='number' data-testid='q-{id}'/></div>`. The 6 old category slugs (Bollywood Vocalist, Classical Vocalist, DJ / Music Producer, Dancer / Troupe, Live Band, Folk Artist) still resolve to empty [] on /category/{slug} — old artist profiles won't crash. Backend admin CRUD has no DELETE endpoint; cleanup pattern is PUT with `{questions: []}` which falls back to seed thanks to the `override.get('questions')` truthy check in get_category.",
+  "rca_of_the_issue": "N/A — no bugs found. All acceptance criteria met on first pass."
+}

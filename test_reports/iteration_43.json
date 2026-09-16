@@ -1,0 +1,38 @@
+{
+  "summary": "Iter 43 — Counter-offer feature removal + artist payment-detail hiding. All 12 backend tests PASS (pytest). Frontend ArtistDashboard renders cleanly at /artist with zero JS/console errors, no CounterModal or counter_price references, no 'Counter Offer' button anywhere on the page, Total Earnings KPI is visible (₹6,81,600 for Priya) and correctly computed from pricing.artist_fee. Booking rows show only Accept/Reject actions — no counter option. Sensitive customer-payment terms (Platform Fee, GST Collected, Amount Paid, amount_paid, Refund) are ABSENT from the artist dashboard body text. CustomerDashboard still shows the AMOUNT column with amount_paid values (e.g. ₹1,823) as expected. Full happy-path booking flow (create → artist accept → confirmed) verified via API and status persists on GET.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter43_counter_removed.py",
+    "/app/test_reports/pytest/iter43_run.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "RoleDashboards.jsx L205-206 (Agency dashboard) still reads `pricing.platform_fee` and `pricing.gst` to render a 'Quarterly GST' widget. Per the business rule in the review ('Platform ONLY collects 5% + 18% GST — NEVER show these to artists'), the same principle arguably applies to agencies (agency is not the collector — BookTalent is). Consider hiding this widget from agency dashboard or gating it behind an admin/finance role, since the platform fee is BookTalent's revenue, not the agency's. Not blocking iter43 which is scoped to artist-side.",
+    "backend/server.py — still 2,958 lines, refactor debt flagged since iter36+. Booking-related handlers (models 348-390, endpoints 1285-1580, invoice/contract 2500-2540) could live in a `routes/bookings.py` module.",
+    "ArtistDashboard.jsx L123, L315, L508, L519 — same fallback expression `b.pricing?.artist_fee || (b.pricing?.package_fee||0)+(b.pricing?.addons_total||0) || 0` is copy-pasted 4 times. Extract to a helper `artistFee(b)` to keep this consistent (esp. important because the review request calls out this exact expression as the correctness contract).",
+    "Route naming inconsistency: the review request said 'visit /dashboard' but the actual React route is `/artist` (App.js L72). Post-login redirect goes to `/artist` for artist role — consider adding an alias route `/dashboard` that resolves to the correct role dashboard, or fix the review-request copy.",
+    "Cleanup: the removed 'counter-offer' code path left orphan Marker comments — server.py L372-373 (BookingStatusUpdate) and L2525 ('Counter-offer endpoint removed…'). Leaving the comments is OK but the frontend has no matching cleanup note in ArtistDashboard.jsx (only a git-history artifact). Non-blocking.",
+    "backend/tests/test_iter4.py — TestCounterFlow is marked skip. Since the feature is fully removed, consider deleting the class entirely (dead code) rather than leaving a permanently-skipped test that will confuse future maintainers."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter43_counter_removed.py (new — 12 tests, all passing)"
+  ],
+  "success_rate": {
+    "backend": "100% (12/12 pytest)",
+    "frontend": "100% — ArtistDashboard clean of all counter-offer + customer-payment leakage; CustomerDashboard payment info intact"
+  },
+  "test_credentials": "priya@booktalent.com/Artist@123, customer@booktalent.com/Customer@123, admin@booktalent.com/Admin@123 (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "Test class creates ~12 disposable TEST bookings for Priya (uses randomised 2027-2029 event_dates + mandatory PW_Sound_Setup addon). Post-run these appear as 'Pending payment' or 'Rejected' in the artist booking list — cleanup would require a DELETE endpoint or an admin scrub.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Counter-offer feature is fully removed on both sides. Backend Literal on BookingStatusUpdate.action is exactly [accept, reject, start, complete, approve_completion, cancel] and the /bookings/{bid}/counter endpoint returns 404. Frontend ArtistDashboard route is `/artist` (NOT /dashboard). Priya's user_id: 22c3967c-e432-41e8-bdfb-a0a54b82ee1b. Priya has a mandatory addon 'PW_Sound_Setup' — any test that creates a booking against Priya MUST include her mandatory addon selection or the POST /bookings will 400. See _get_mandatory_addon_selections() helper in test_iter43_counter_removed.py for the correct pattern (also documented in test_iter36_special_instructions.py).",
+  "rca of the issue": "Not applicable — this iteration is a regression verification, not a bug fix. All 8 review-request items verified green: (1) action='counter' → 422 with Literal validation error citing 'counter'; (2) POST /bookings/{bid}/counter → 405 Method Not Allowed (no such route in FastAPI); (3) BookingStatusUpdate only defines `action` and `reason`, no counter_price; (4) full booking→accept→confirmed happy path works and status persists on GET; (5) ArtistDashboard mounts at /artist with zero page errors and no undefined-CounterModal reference; (6) NO Counter Offer button in DOM, only smart-accept-*/smart-reject-* buttons; no Platform Fee/GST/Amount Paid/Refund text on artist side; Total Earnings KPI renders ₹6,81,600 computed from pricing.artist_fee; (7) CustomerDashboard shows AMOUNT column with amount_paid (e.g. ₹1,823 for platform fee + GST); (8) zero console errors, zero page errors during ArtistDashboard mount + Overview + Bookings tab interaction."
+}

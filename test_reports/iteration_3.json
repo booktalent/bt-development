@@ -1,0 +1,48 @@
+{
+  "summary": "Iteration 3 — Validated the new email-OTP signup gate (Resend mock mode). Added 7 new pytest cases under TestEmailOTP covering /auth/config flag, mock send returning test_otp=123456, 60s cooldown 429, wrong/no-send 400 verify errors, success-then-register issuing JWT with verified/email_verified=true, register-without-verify rejection (400 'verify your email first'), and duplicate-email rejection. Updated session-scoped customer fixture and two pre-existing stranger-registration tests to call /auth/email/send + /auth/email/verify before /auth/register (previously failing after the new gate). Final pytest result: 43 passed, 0 failed in ~2.7s. Frontend signup 4-step flow on /signup verified end-to-end on the public preview URL: role=customer → details → 'Continue → Verify Email' → step 3 shows 'Test code: 123456' in the body AND a bottom-right toast 'Test code: 123456' → entered 123456 → 'Verify & Continue' → step 4 'Almost there!' shows '✓ Email Verified' card with email + role → 'Create My Account ✨' → landed on /customer with 'Welcome, UITest' and 'Email verified ✓' toast. Regression: all prior backend flows (login/admin, artist seeded, booking pricing, payment init/verify mock, contract accept→PDF, invoice PDF, refund admin-only, webhook disabled) still pass.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /auth/email/send", "issue": "Cooldown enforced even after a successful verify — if a user re-opens signup for the same email within 60s, /auth/email/send returns 429. Frontend 'Resend Code' is also 60s gated; that's acceptable but slightly user-hostile right after a fresh verify."},
+      {"endpoint": "POST /auth/email/send", "issue": "Mock-mode 'sent_at' uses utcnow() helper which returns an isoformat string while datetime.fromisoformat parses it back — works, but if utcnow() ever returns a tz-naive ISO the timedelta math will throw and fall back to 'now' (effectively no cooldown). Defensive but worth pinning to timezone.utc consistently."},
+      {"endpoint": "POST /auth/otp/send & /auth/otp/verify (phone SMS)", "issue": "Carry-over: SMS OTP endpoints still exist even though email is the primary verification flow now. Recommend removing or hiding from public docs to avoid confusion / bypass risk."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "ArtistProfile.jsx ~line 219", "issue": "Carry-over (iter 1+2): <select><option><span style></span></option></select> still triggers React hydration warning in console on every artist page.", "selector": "select.field-input > option > span", "priority": "MEDIUM"},
+      {"component": "Document title", "issue": "Carry-over: <title> remains 'Emergent | Fullstack App' instead of 'BookTalent'.", "selector": "head > title", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/signup step 3", "issues": ["The 'Test code: 123456' hint is shown twice — once inline under the heading and again as a persistent bottom-right toast. Slightly redundant; can be hidden once user types into the OTP field."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "(Optional) Remove or deprecate /auth/otp/send + /auth/otp/verify SMS endpoints since email is the new verification path.",
+    "Carry-over: fix <option><span> hydration warning in ArtistProfile.jsx.",
+    "Carry-over: set proper <title> in /app/frontend/public/index.html.",
+    "Consider de-duplicating the 'Test code' hint on /signup step 3 (currently shown inline AND as a toast)."
+  ],
+  "critical_code_review_comments": [
+    "server.py is now 2100+ lines — auth + email-OTP + payments + admin + contracts in a single module. Strongly recommend splitting into routers/auth.py, routers/email.py, routers/payments.py, etc.",
+    "email_service.generate_otp() returns the deterministic literal '123456' in mock mode — fine for testing, but a thin layer of guard (env flag) would prevent any chance of this leaking into production should keys be misconfigured.",
+    "/auth/email/send stores the raw OTP in MongoDB; for production safety, hash the OTP (e.g., bcrypt or HMAC-sha256 with JWT_SECRET) and compare hashes on verify so a DB leak doesn't reveal active codes.",
+    "/auth/email/verify does not throttle wrong attempts — a single record can be brute-forced 1M attempts within the 10-minute window. Add a max_attempts (e.g., 5) + lock-out, similar to login lockout.",
+    "/auth/register pulls email_otps record and trusts verified flag but never deletes/invalidates it after register, so the same verified record could be reused if the user is later deleted and re-registered. Suggest deleting/marking 'consumed' on successful register."
+  ],
+  "updated_files": [
+    "/app/backend/tests/backend_test.py (added TestEmailOTP with 7 tests, added _verify_email() helper, updated customer fixture and 2 stranger-registration tests to do email-verify before register)"
+  ],
+  "success_rate": {"backend": "100% (43/43 passed)", "frontend": "100% on the new signup-with-email-verify flow"},
+  "test_credentials": "Admin admin@booktalent.com/Admin@123, Customer customer@booktalent.com/Customer@123, Artist priya@booktalent.com/Artist@123, Email OTP (mock) 123456, Payment OTP (mock) 123456. RESEND_API_KEY empty → mock mode (verified via GET /api/auth/config → {email_provider_enabled:false}).",
+  "seed_data_creation": "Multiple TEST_email_*, TEST_cool_*, TEST_wrong_*, TEST_nosend_*, TEST_reg_*, TEST_block_*, TEST_ui_* records created in db.email_otps and db.users during this run. One UI signup left behind a customer user 'UITest User' (TEST_ui_<ts>@booktalent.com) on /customer dashboard. Safe to purge with email regex ^TEST_.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Email OTP runs in MOCK MODE (RESEND_API_KEY empty in /app/backend/.env). /auth/email/send returns {sent:true, mock:true, test_otp:'123456'}. /auth/email/verify accepts '123456'. /auth/register requires a prior verified email_otps record. SMS phone OTP endpoints (/auth/otp/send|verify) still exist but are no longer the primary signup path. When live Resend keys are added later, retest: /auth/config → email_provider_enabled:true; /auth/email/send should NOT return test_otp in response and an actual email should be sent via Resend; generate_otp() should yield a random 6-digit code (not 123456). Frontend signup testids: role-customer/artist/agency/corporate, signup-next-1, signup-first-name, signup-last-name, signup-email, signup-phone, signup-password, signup-confirm, signup-send-otp, signup-email-otp, signup-verify-otp, signup-resend-otp, signup-submit. Mock 'Test code: 123456' surfaces both inline on step 3 and as a corner toast.",
+  "rca of the issue": "No critical bugs found. Two pre-existing tests (test_contract_pdf_forbidden_for_stranger, test_invoice_pdf_forbidden) failed on first run because they POST /auth/register for stranger accounts without going through the new email-verify gate. Root cause: new requirement in /auth/register checks db.email_otps for a verified record. Fix applied: added _verify_email() helper and called it before each stranger-register in tests. All 43 tests now pass."
+}

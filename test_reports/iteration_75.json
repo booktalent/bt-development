@@ -1,0 +1,24 @@
+{
+  "summary": "Iter 87 tested: 3 admin reports (artist-bookings, manager-leads, platform-waivers) with JSON+CSV, unified audit log with filters, CORS hardening (evil origin blocked; preview.emergentagent.com and booktalent.in regex allowed), 403 for non-admin, and Iter 86 regression. 22/22 pytest passed. Frontend AdminReports & AdminAudit UIs render with all expected data-testids; sub-tab switching, CSV buttons, filter apply/clear all functional.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iter87_reports_audit.py",
+    "/app/test_reports/pytest/iter87_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "reports.py manager-leads: docstring/spec says 12 stages but STAGES list has 13 items (includes both 'closed' and 'lost_cancelled' alongside 11 pipeline stages). Test adjusted; consider updating spec or removing one stage.",
+    "reports.py platform-waivers: platform_settings.find_one runs inside the async for-loop per booking (N+1 query). Move outside the loop for perf on large datasets.",
+    "reports.py unified audit: 'entity' filter is only applied to audit_logs source (q2), not admin_audit_log (q1 uses target_type). Consider matching target_type when entity filter is provided for admin source too.",
+    "reports.py CSV filename uses raw user-supplied start/end date strings — validate/whitelist to prevent header injection (unlikely due to regex on format param, but start/end are unvalidated)."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter87_reports_audit.py"],
+  "success_rate": {"backend": "100% (22/22)", "frontend": "100%"},
+  "test_credentials": "admin@booktalent.com/Admin@123, customer@booktalent.com/Customer@123",
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iter 87 fully green. CORS tested against http://localhost:8001 (preview ingress strips headers as noted). All 3 report endpoints & unified audit tested with all filter combos. Frontend testids confirmed: rep-tab-{revenue,artist-bookings,manager-leads,waivers}, rep-csv-{artist-bookings,manager-leads,waivers}, admin-audit, audit-filter-{actor,action,entity,start,end,apply,clear}.",
+  "rca of the issue": "N/A — no failures."
+}

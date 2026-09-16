@@ -1,0 +1,51 @@
+{
+  "summary": "Iter44 re-verification after batch-endpoint fix. Backend: all 16 tests pass (previously 9/15). Frontend: recap page, empty state, customer-dashboard share-recap, and booking-flow success screen all render correctly. However event-strip on success screen does NOT render due to a response-parser bug in BookingFlow.jsx that reads r.data.artists but API returns r.data.suggested — blocking the multi-artist suggestion flow.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "BookingFlow.jsx (success screen)",
+        "issue": "event-strip never renders because setSuggested() reads response.data.artists but /api/artists/{id}/suggested returns { suggested: [...] } — resulting in an empty `suggested` state and hidden event-strip. Fix: change line 103 from `r.data?.artists || []` to `r.data?.suggested || r.data?.artists || []`.",
+        "selector": "[data-testid=event-strip], [data-testid^=event-suggest-]",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Multi-artist same-event follow-up booking from success screen",
+        "issue": "Because event-strip is hidden, users cannot tap a suggested artist to auto-attach a second booking to the same event_id. This effectively blocks the primary iter44 UX. Backend batch and payment paths are fine; only the client parser is wrong.",
+        "affected_selectors": ["[data-testid=event-strip]", "[data-testid^=event-suggest-]"]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter44_multi_artist_recap.py",
+    "/app/test_reports/pytest/iter44_retest.xml"
+  ],
+  "action_items": [
+    "Fix BookingFlow.jsx L103: use r.data?.suggested (the API contract) instead of r.data?.artists. After fix, event-strip should render with 6 suggestion cards each with href /book/<uid>?event_id=<uuid>&date=2035-03-14&city=Mumbai&event_type=... allowing the 2nd booking to auto-attach to the same event."
+  ],
+  "critical_code_review_comments": [
+    "BookingFlow.jsx L103 vs L860 have inconsistent parsing of the /suggested response — L860 correctly uses r.data?.suggested, L103 wrongly uses r.data?.artists. Same endpoint, two parsers, one wrong.",
+    "server.py L1665 status guard (only mutate `pending_payment`) is verified working — pre-confirmed booking is not regressed by payment_batch_verify (new test TestBatchPaymentRegressionGuard.test_batch_verify_skips_confirmed_booking passes).",
+    "server.py batch endpoint (first item mints event_id, remaining attach) now behaves per spec; 2 artists share the same event_id on GET /bookings/{id}."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter44_multi_artist_recap.py — (a) fixed amount_paid assertion to compare each booking's amount_paid against its OWN pricing.token_amount instead of batch_total/2 (spec-correct); (b) added TestBatchPaymentRegressionGuard.test_batch_verify_skips_confirmed_booking regression test that the review request called for."
+  ],
+  "success_rate": {
+    "backend": "100% (16/16)",
+    "frontend": "80% (4/5 sub-scenarios pass; event-strip fails)"
+  },
+  "test_credentials": "Loaded from /app/memory/test_credentials.md — used customer@booktalent.com / Customer@123 for e2e",
+  "seed_data_creation": "Live seed event 074519dd-c59b-4db3-a109-324b3798fbc9 (created by main agent) reused. Backend tests created ~10 fresh TEST_ bookings across 2029-2035; no manual DB seeds beyond pytest fixtures. E2E playwright created 1 additional booking (BT-260723-576635 on 2035-03-14).",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "The single remaining defect is a 1-line frontend fix in BookingFlow.jsx L103. After main agent fixes the parser, re-run only these two scenarios: (1) frontend booking-flow through step 6 confirming [data-testid=event-strip] appears with >=1 [data-testid^=event-suggest-] card whose href contains ?event_id=<uuid>&date=<same>&city=<same>&event_type=<same>; (2) click a suggest card → 2nd BookingFlow prefills event_date/event_time/city/venue/event_type from URL; complete payment; GET /api/bookings/mine confirms two most-recent bookings share event_id. Backend suite (test_iter44_multi_artist_recap.py) requires REACT_APP_BACKEND_URL, MONGO_URL, and DB_NAME env vars — the test file no longer relies on defaults for MongoDB (quoted values in .env broke the pymongo URI, now stripped inline).",
+  "rca_of_the_issue": "Event-strip render condition is `suggested.length > 0 && successData.event_id`. `suggested` is set in the useEffect at L96-105 via `setSuggested(Array.isArray(r.data) ? r.data : (r.data?.artists || []))`. However the API GET /api/artists/{id}/suggested returns `{ suggested: [...] }` (verified via curl). Since r.data is neither an array nor has an `artists` key, setSuggested is always called with []. The very same file (L860) parses the same endpoint correctly with `r.data?.suggested || []`. Mitigation: change L103 to `r.data?.suggested || r.data?.artists || []` (keeping the artists fallback for defensive future-proofing)."
+}

@@ -1,0 +1,49 @@
+{
+  "summary": "Iter 53 — Artist Payment Gating verified end-to-end. Backend: 9/9 pytest green covering (a) GET /bookings/mine as artist strips pricing.platform_fee/gst/total/token_amount/balance_due/coupon_discount and keeps package_fee/addons_total/artist_fee on modern-schema bookings, (b) GET /bookings/{id} as artist scrubs same pricing keys and, when amount_paid==0, sets contact_unlocked=false + _contact_locked=true + removes customer.email/phone AND booking.customer_phone/customer_email, (c) GET /bookings/{id} as customer still returns pricing.total/platform_fee/gst untouched, (d) GET /bookings/{id}/invoice returns 403 for artist and 200 PDF for customer (verified via %PDF magic bytes). Frontend: Artist Dashboard /artist → sb-bookings tab renders bookings-table with headers [Ref, Event, Date, Package, Status, Actions], 0 dl-invoice-* buttons across 194 rows, 194 pkg-cell-* testids showing package name + package_fee, chat button toggles between '💬 Chat' (unlocked, past pending_payment) and '🔒 Pay to Unlock Chat' (locked+disabled) for unpaid pending_payment rows. Customer Dashboard /customer regression: table headers [Ref, Event, Date, Amount, Status, Actions] with pricing.total values (₹2,360 etc.) and 59 dl-invoice-* buttons rendered (only for amount_paid>0 rows). No pkg-cell testids present on customer view — role gate holds.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Artist Bookings — pkg-cell for legacy bookings",
+        "issues": [
+          "First booking row BT-260723-2F0161 renders '—' as package name and '₹0' as package price because the underlying doc uses the legacy pricing schema {base, addons, artist_fee} without `package_name` or `package_fee`. Not caused by this iter's redactor — the doc simply predates the current pricing engine. Suggestion: in BookingsTable pkg-cell, fall back to `pricing?.base` when `pricing?.package_fee` is missing, and pkg name fallback to a joined package label or event_type."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter53_artist_gating.py",
+    "/app/test_reports/pytest/iter53_run.xml"
+  ],
+  "action_items": [
+    "OPTIONAL polish: pkg-cell fallback for legacy bookings so `—` / `₹0` never shows (fall back to pricing.base + event_type or package name from artist_profile.packages[0]).",
+    "OPTIONAL: add `package_name` to `_redact_pricing_for_artist` payload guarantee — right now if the legacy booking doc lacks `package_name` the UI shows an em-dash. Consider computing it server-side when missing."
+  ],
+  "critical_code_review_comments": [
+    "backend/server.py:1879 _redact_pricing_for_artist — pop() with default None on 6 fixed keys is idempotent and safe. Good separation of concern in a single helper.",
+    "backend/server.py:1904-1907 /bookings/mine — the redaction chain is correct: contact-lock first, then pricing scrub. Note: `paid` is computed as (payment_status=='paid') OR (amount_paid>0). If a booking is partially paid the artist WILL see contact info, matching business intent (fee has been captured).",
+    "backend/server.py:1950-1957 /bookings/{bid} — booking_clean is scrubbed AFTER `paid` is derived from the raw doc (which still holds pricing). Correct order; scrubbing happens on the outbound clone only.",
+    "backend/server.py:3051 invoice 403 guard — placed AFTER the customer/artist tuple check so artist gets 403 with the specific 'Platform invoices are issued only to the customer' message rather than 'Forbidden'. Nice UX.",
+    "frontend/src/pages/CustomerDashboard.jsx:222 — header swap uses ternary `role === 'artist' ? Package : Amount`. Verified live on both dashboards; the shared BookingsTable is now role-aware. Just be mindful that agency/corporate roles fall into the 'else' branch and see Amount too — likely intended.",
+    "frontend/src/pages/CustomerDashboard.jsx:288 `b.amount_paid > 0 && role !== 'artist'` gate — correct. Result verified: artist sees 0 dl-invoice buttons across 194 rows.",
+    "frontend/src/pages/CustomerDashboard.jsx:304-326 chat gating — logic `isPendingPayment && (unpaid || undefined ps)` locks the button ONLY for fresh unpaid requests, past bookings stay open. This matches the artist-side screenshot (mixed lock/unlock states). Slight readability nit: the `undefined && x` short-circuit in `ps === 'unpaid' || ps === undefined && isPendingPayment` binds `&&` before `||` — currently works but adding parens `|| (ps === undefined && isPendingPayment)` would make intent obvious.",
+    "backend/tests/test_iter53_artist_gating.py — class-scoped fixture as instance method emits a pytest 10 deprecation warning. Cosmetic only, will convert to @classmethod on next pass."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter53_artist_gating.py (NEW — 9 tests across TestArtistBookingsMine[4], TestArtistBookingDetail[2], TestCustomerDetailUnaffected[1], TestInvoiceGating[2])",
+    "/app/test_reports/pytest/iter53_run.xml (JUnit output)",
+    "/app/test_reports/iteration_53.json"
+  ],
+  "success_rate": {
+    "backend": "100% (9/9 iter53 tests)",
+    "frontend": "100% (artist dashboard: Package col + 0 invoice btns + 194 pkg-cells + chat lock/unlock verified; customer dashboard regression: Amount col + 59 invoice btns + 0 pkg-cells)"
+  },
+  "test_credentials": "artist priya@booktalent.com / Artist@123 (194 existing bookings including many pending_payment); customer customer@booktalent.com / Customer@123 (182 existing bookings, 59 paid+invoice-eligible).",
+  "seed_data_creation": "None — all tests use pre-seeded bookings from earlier iterations. No new data created or mutated.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iter 53 artist payment gating is fully green. Test file: /app/backend/tests/test_iter53_artist_gating.py. Run cmd: `export REACT_APP_BACKEND_URL=$(grep REACT_APP_BACKEND_URL /app/frontend/.env | cut -d= -f2) && pytest backend/tests/test_iter53_artist_gating.py -v`. Frontend artist dashboard sits at /artist (not /dashboard — that route 404s). Sidebar item testid is `sb-bookings`. Both dashboards share BookingsTable component (CustomerDashboard.jsx) with role prop; role='artist' swaps Amount→Package, hides dl-invoice, and gates chat button. Priya has legacy bookings with pricing schema `{base, addons, artist_fee}` (no `package_fee`) — the redactor is schema-tolerant but the UI falls back to `—` / `₹0` for those rows. Not a regression, but worth polishing.",
+  "rca_of_the_issue": "N/A — all Iter 53 acceptance criteria are met. Only observation is the legacy-schema fallthrough in pkg-cell rendering (design nit, not a bug)."
+}

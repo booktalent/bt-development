@@ -1,0 +1,47 @@
+[Unit]
+Description=BookTalent FastAPI backend (uvicorn workers)
+After=network.target mongod.service redis.service
+Wants=mongod.service
+
+[Service]
+Type=simple
+User=booktalent
+Group=booktalent
+WorkingDirectory=/opt/booktalent/backend
+
+# Load .env from a systemd EnvironmentFile so secrets never appear on the command line.
+EnvironmentFile=/opt/booktalent/backend/.env
+
+# uvicorn with 4 workers — bump this on bigger boxes (roughly 2× CPU cores).
+# Bind to 127.0.0.1 only; Nginx handles the public port.
+ExecStart=/opt/booktalent/backend/.venv/bin/uvicorn server:app \
+    --host 127.0.0.1 \
+    --port 8001 \
+    --workers 4 \
+    --proxy-headers \
+    --forwarded-allow-ips="127.0.0.1"
+
+# Restart policy — never give up
+Restart=always
+RestartSec=5
+StartLimitInterval=0
+
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/opt/booktalent/backend /var/log/booktalent
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+
+# Logs → journalctl -u booktalent-backend -f
+StandardOutput=journal
+StandardError=journal
+
+# File descriptor limit — WebSockets can hold many connections
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

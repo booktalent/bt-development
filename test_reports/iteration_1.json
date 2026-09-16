@@ -1,0 +1,47 @@
+{
+  "summary": "First iteration end-to-end smoke + integration test for BookTalent. Backend: 28/28 pytest tests pass (auth, artists, packages CRUD, full booking state machine — create → pay → accept → complete → approve → wallet credit, reviews, withdrawals, media, availability blocking, KYC, admin stats/lists/coupons). Frontend: landing, login (/login route — note: spec referenced /signin but actual route is /login), signup, search → artist profile (all 4 tabs), and dashboards for customer/admin/artist all load with every expected sidebar data-testid present. Token stored in localStorage under key 'bt_token'.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "PUT /api/packages/{id}", "issue": "Requires full PackageBody (not a partial PATCH). Sending only {price} returns 422. Consider using a PartialPackage model or switching to PATCH."},
+      {"endpoint": "GET /api/coupons/validate", "issue": "Currently auth-protected (Depends on get_current_user). For a public checkout page this should be open OR clearly documented. Test had to send admin token."},
+      {"endpoint": "POST /api/bookings", "issue": "Field `guests` typed as Optional[str] — frontend integers will 422. Recommend Optional[int] or coerce."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "ArtistProfile.jsx (~line 219)", "issue": "React hydration error: <span> cannot be a child of <option>. The package <select>'s <option> wraps a styled span. Browsers strip non-text inside <option> and React warns.", "selector": "select.field-input > option > span", "priority": "MEDIUM"},
+      {"component": "Document title", "issue": "Page title is 'Emergent | Fullstack App' across all routes — should be branded e.g. 'BookTalent — Book India's Finest Talent'.", "selector": "head > title", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Fix <option> hydration warning in ArtistProfile package selector (use plain text in <option>, do styling via parent <select> or custom dropdown).",
+    "Set proper <title> in /app/frontend/public/index.html (or via react-helmet).",
+    "Consider supporting partial update on PUT /api/packages/{id} OR move to PATCH.",
+    "Decide whether /api/coupons/validate should be public; if yes, drop the auth dependency.",
+    "Optional: change BookingCreate.guests to int with coercion."
+  ],
+  "critical_code_review_comments": [
+    "server.py is 1,766 lines — should be split into routers (auth, artists, bookings, payments, wallet, admin, etc.) for maintainability.",
+    "Several endpoints set 'expires_at' to utcnow() with no real TTL (OTP and password resets) — they appear to be intended to expire but stored expiry equals creation time. Bug risk; right now OTP only checks value == 123456 so it works in mock, but the schema is misleading.",
+    "Many MongoDB queries fetch full collections (reviews, bookings.to_list(500), notifications.to_list(50)) without indexes — fine for demo but flag for production.",
+    "Token uses long expiry (7 days?) — make sure refresh logic exists for production.",
+    "Frontend uses single bt_token in localStorage (no httpOnly cookie) — acceptable per spec but worth noting from a security perspective.",
+    "<option> contains <span> in ArtistProfile.jsx (~line 219) — invalid HTML and produces hydration warnings."
+  ],
+  "updated_files": [
+    "/app/backend/tests/backend_test.py (created)"
+  ],
+  "success_rate": {"backend": "100% (28/28)", "frontend": "~95% — all sidebars, all auth flows, all dashboards loaded; one HTML/hydration warning"},
+  "test_credentials": "Admin admin@booktalent.com/Admin@123, Customer customer@booktalent.com/Customer@123, Artist priya@booktalent.com/Artist@123. Mock OTP 123456. Sign-in route is /login (NOT /signin). Token key in localStorage is 'bt_token'.",
+  "seed_data_creation": "Test created a new customer (TEST_cust_<uuid>@booktalent.com / Test@1234), one TEST_PKG package (deleted at end), several bookings on seed artist priya, blocked availability date 2028-01-15 on priya's calendar, and one TESTCPN<hex> coupon.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend route /login (not /signin) is the sign-in screen. localStorage key is bt_token. Booking guests field is a string. Coupon validate requires auth. Full booking flow can be exercised end-to-end via the test_credentials supplied. backend_test.py is reusable as regression."
+}

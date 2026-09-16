@@ -1,0 +1,25 @@
+{
+  "summary": "Iter 92 tested end-to-end. Backend: 8/8 pytest cases pass (KPIs, funnel, churn, daily gap-fill, RBAC 403, public trust no-auth, get/patch prefs with force-on protection). Helper script confirmed is_channel_muted correctly returns True for muted marketing.digest+whatsapp and False for force-on booking.confirmed, and notification_service.dispatch short-circuits with status='muted_by_user' for muted channels. Frontend: /trust renders publicly with all 8 trust-* testids + live counts (6 artists, 11 events, 12 cities, avg rating 5); /admin?tab=analytics renders admin-analytics-dashboard with an-days dropdown, an-kpis grid (8 KPI cards including an-churn-card), an-daily-chart SVG line, an-funnel with all 6 stages (an-funnel-0..5); /settings/notifications renders notification-preferences with exactly 10 np-row-* rows, force-on rows display 🔒 with disabled checkboxes, Save + Reset buttons visible; nav-notif-prefs bell icon visible for authenticated users.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iter92.py",
+    "/app/backend/tests/test_iter92_helper.py",
+    "/app/test_reports/pytest/iter92.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "notification_service.dispatch imports is_channel_muted inside the loop and swallows all exceptions silently (except Exception: pass) — a bug in the helper could go unnoticed. Consider logging.",
+    "iter92.py public_trust_stats does two full-collection scans (artist_profiles + bookings) on every no-auth request — should cache/memoize or use distinct() to reduce DB load if trust page gets any traffic."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter92.py",
+    "/app/backend/tests/test_iter92_helper.py"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "admin@booktalent.com/Admin@123, priya@booktalent.com/Artist@123",
+  "seed_data_creation": "None. Test PATCH re-saved Priya marketing.digest={whatsapp:false,email:false} which matches existing state.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iter 92 fully green. test_iter92.py covers the 3 features via HTTP. test_iter92_helper.py directly exercises is_channel_muted + notification_service.dispatch mute short-circuit against the real DB."
+}

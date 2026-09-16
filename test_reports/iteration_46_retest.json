@@ -1,0 +1,26 @@
+{
+  "summary": "Iter46 retest of the ONLY HIGH bug from iteration_46.json — Planner 'Explore Artists →' CTA deep-linking to /discover 404. Fix (App.js '/discover' route alias + EventPlannerPage exploreCategory strips 'Singer / Vocalist' -> 'Singer') is VERIFIED end-to-end. All 4 retest cases pass.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/iteration_46_retest.json"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "App.js L64-65: /search and /discover both mount <Search /> — clean alias, no route duplication concern. Iter46 spec URL (/discover?category=&city=&date=) now works.",
+    "EventPlannerPage.jsx L58-67 exploreCategory: 'Singer / Vocalist' correctly split on '/' and trimmed to 'Singer' — matches Search page's category state; however Search.jsx's <select data-testid=filter-category> options come from an async /api/categories fetch and use exact category names, so 'Singer' does NOT match a full 'Singer / Vocalist' option and the dropdown displays 'All Categories' (blank) even though the internal state = 'Singer' and the API query DOES include category=Singer. Net result: 0 results shown even when DB likely has singers under a different full name. The task explicitly allowed this ('If 0 artists match — that's fine, only the routing must resolve'), so NOT a blocker, but worth flagging to E1 as a follow-up UX polish: either (a) fuzzy-match category slugs on backend so category=Singer matches 'Singer / Vocalist', or (b) preserve the LLM's exact label in the deep-link (skip the split).",
+    "Test evidence — actual URL produced by planner CTA click: /discover?category=Singer&city=Mumbai&sort=relevance&page=1&limit=24, H1 = 'Discover Artists', filter-city select = 'Mumbai' (chip pre-selected). Direct load of /discover?category=Singer&city=Mumbai also renders correctly (bookmarkable). /search?category=Singer&city=Mumbai regression PASS. Nav 'Discover Artists' link href still = /search (unchanged)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only retest)", "frontend": "100% (4/4 retest cases)"},
+  "test_credentials": "customer@booktalent.com / Customer@123 — NOT required for this retest; /planner, /discover, /search are all public routes.",
+  "seed_data_creation": "None.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iter46 HIGH bug (Explore CTA -> 404) is FIXED. All iter46 items now green. Only minor follow-up: category-name normalisation between LLM output ('Singer / Vocalist') and backend/search category slugs would improve zero-result experience but is explicitly out of scope for this retest.",
+  "rca_of_the_issue": "Fix verified. App.js L65 <Route path='/discover' element={<Search />}/> alias mounts the Search page under the /discover URL, and EventPlannerPage.jsx exploreCategory now emits the cleaned category slug ('Singer' vs 'Singer / Vocalist'). Deep link therefore resolves to a real route (no 404) and Search.jsx's useSearchParams initializer picks up ?category= and ?city= into filter state on first render."
+}

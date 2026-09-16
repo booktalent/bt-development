@@ -1,0 +1,161 @@
+/* ─────────────────────────────────────────────────────────────────────────
+   Iter 44 — Artist Card V2 (big cover image, Available badge, tag chips,
+   Book Now), local-city highlight, spotlight rotation transition.
+────────────────────────────────────────────────────────────────────────── */
+
+.artist-grid-v2 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 22px;
+}
+@media (max-width: 1100px) { .artist-grid-v2 { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 800px)  { .artist-grid-v2 { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 500px)  { .artist-grid-v2 { grid-template-columns: 1fr; } }
+
+.artist-card-v2 {
+  position: relative;
+  border-radius: 18px;
+  overflow: hidden;
+  background: linear-gradient(160deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
+  border: 1px solid var(--glass-border);
+  transition: transform .3s cubic-bezier(0.22, 1, 0.36, 1), border-color .3s ease, box-shadow .3s ease;
+  text-decoration: none;
+  color: inherit;
+  display: flex; flex-direction: column;
+}
+.artist-card-v2:hover {
+  transform: translateY(-6px);
+  border-color: rgba(212, 175, 55, 0.4);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(212, 175, 55, 0.1);
+}
+
+.artist-img-wrap {
+  position: relative;
+  aspect-ratio: 4 / 5;
+  overflow: hidden;
+  background: linear-gradient(135deg, rgba(109,40,217,0.35), rgba(212,175,55,0.15));
+  display: flex; align-items: center; justify-content: center;
+}
+.artist-cover-v2 {
+  width: 100%; height: 100%;
+  background-size: cover; background-position: center;
+  transition: transform .5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.artist-card-v2:hover .artist-cover-v2 { transform: scale(1.07); }
+
+.artist-overlay {
+  position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(0,0,0,0) 45%, rgba(0,0,0,0.9) 100%);
+  pointer-events: none;
+}
+
+.artist-badge {
+  position: absolute; top: 14px; right: 14px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 11px; font-weight: 700;
+  letter-spacing: 0.3px;
+  display: inline-flex; align-items: center; gap: 6px;
+  backdrop-filter: blur(6px);
+  z-index: 3;
+}
+.artist-badge.available {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.4);
+}
+.badge-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: #34d399;
+  box-shadow: 0 0 8px rgba(52, 211, 153, 0.9);
+  animation: pulseDot 1.8s ease-in-out infinite;
+}
+@keyframes pulseDot { 0%,100%{ opacity: 1; } 50%{ opacity: 0.5; } }
+
+.artist-badge.boosted  { background: linear-gradient(135deg, #d4af37, #b8860b); color: #fff; border: 1px solid rgba(255,255,255,0.15); }
+.artist-badge.elite    { background: linear-gradient(135deg, #f472b6, #d4af37); color: #fff; border: 1px solid rgba(255,255,255,0.15); }
+.artist-badge.platinum { background: linear-gradient(135deg, #a78bfa, #7c3aed); color: #fff; border: 1px solid rgba(255,255,255,0.15); }
+
+.artist-img-info {
+  position: absolute; bottom: 14px; left: 16px; right: 16px;
+  z-index: 2;
+  color: #fff;
+}
+.artist-name-big {
+  font-family: var(--font-serif, "Playfair Display", serif);
+  font-size: 21px; font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.4px;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.4);
+}
+.artist-type-tag {
+  margin-top: 4px;
+  color: rgba(255,255,255,0.8);
+  font-size: 12.5px;
+}
+
+.artist-body-v2 { padding: 14px 16px 16px; }
+.artist-rating-row {
+  display: flex; align-items: center; gap: 6px;
+  margin-bottom: 10px; font-size: 13px;
+}
+.artist-rating-row .stars { color: var(--gold-light); letter-spacing: 2px; }
+.artist-rating-val { color: var(--white); font-weight: 700; }
+.artist-reviews { color: var(--white-muted); font-size: 12px; }
+
+.artist-tags {
+  display: flex; flex-wrap: wrap; gap: 5px;
+  margin-bottom: 14px; min-height: 24px;
+}
+.atag {
+  padding: 3px 9px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  color: var(--white-muted);
+  font-size: 11px;
+  letter-spacing: 0.1px;
+}
+
+.artist-footer {
+  display: flex; align-items: center; justify-content: space-between;
+  padding-top: 12px;
+  border-top: 1px solid var(--glass-border);
+}
+.artist-price-label {
+  color: var(--white-muted);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.artist-price {
+  font-family: var(--font-serif, "Playfair Display", serif);
+  font-weight: 700; font-size: 17px;
+  color: var(--gold-light);
+  margin-top: 1px;
+}
+.artist-price span { color: var(--white-muted); font-size: 12px; font-family: inherit; font-weight: 400; }
+
+/* ── Local city highlight (Iter 44) ────────────────────────────────── */
+.city-card-mine {
+  border-color: rgba(212, 175, 55, 0.55) !important;
+  background: linear-gradient(160deg, rgba(212,175,55,0.12), rgba(255,255,255,0.02)) !important;
+  box-shadow: 0 12px 28px rgba(212, 175, 55, 0.08);
+  position: relative;
+}
+.city-mine-badge {
+  position: absolute; top: 8px; right: 8px;
+  padding: 3px 8px; border-radius: 999px;
+  background: linear-gradient(135deg, var(--gold), var(--gold-light));
+  color: #000;
+  font-size: 10px; font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+
+/* ── Spotlight rotation transition ─────────────────────────────────── */
+.spotlight-card { animation: spotFadeIn .55s ease-out; }
+@keyframes spotFadeIn {
+  from { opacity: 0; transform: translateY(8px) rotate(0deg); }
+  to   { opacity: 1; }
+}

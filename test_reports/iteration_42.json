@@ -1,0 +1,62 @@
+{
+  "summary": "Iter 42 — Suggested Artists panel + Calendar (mobile) verification. Backend GET /api/artists/{user_id}/suggested is solid — 9/9 pytest passing (shape, date filter, 404, limit, category-complement rule, same-city, availability shape). Frontend: SuggestedArtistsPanel renders on step 2 after date+time pick with correct cards (Mohit Pandey / Dhiren Singh — Stand-up Comedians, complementary to Priya's Bollywood Vocalist category). Incomplete-warn banner renders for Priya on step 1. Desktop calendar 44x44 cells, 7 weekday cols, legend + nav + free/past cell semantics all correct. HOWEVER: two real bugs found — (1) BookingFlow uses a fixed 2-col grid `1fr 340px` inline style with NO responsive breakpoint, so on mobile the order-summary sidebar keeps its 340px and squeezes the calendar down to 176px (cells 22.6px vs spec 38px). This is most likely the 'calendar looking bad' bug the user reported. (2) `booking-incomplete-warn` in BookingFlow.jsx reads `artist.answers` at top level, but /api/artists/{id} returns answers embedded on `profile.answers`, not top-level — so the banner incorrectly shows for ALL artists regardless of completion.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "BookingFlow layout (mobile)",
+        "issue": "The inline grid `gridTemplateColumns: '1fr 340px'` on line 262 of BookingFlow.jsx has NO responsive breakpoint. On 390px viewport the 340px order-summary column consumes ~87% of the width and pushes the main content (calendar in step 2) into a 176px column with 22.6px cells — user-visible as an ugly, tiny, cramped calendar. Root cause of user's 'calendar looking bad' bug report. Fix: switch to `gridTemplateColumns: window.innerWidth < 768 ? '1fr' : '1fr 340px'` or (better) use a CSS class with a media query — e.g. `.booking-grid { display:grid; grid-template-columns:1fr 340px; gap:24px } @media (max-width: 768px){ .booking-grid{ grid-template-columns:1fr } .booking-grid > [data-testid=order-summary]{ order:2 } }`",
+        "selector": "BookingFlow.jsx:262 inline style",
+        "priority": "HIGH"
+      },
+      {
+        "component": "booking-incomplete-warn (step 1)",
+        "issue": "Banner logic reads `artist.answers` (line 267) but the /api/artists/{id} response returns answers on `profile.answers`, NOT top-level. Result: `answers = {}` for every artist, filled = 0, banner ALWAYS shows regardless of whether the artist actually completed the questionnaire. For a well-completed artist the banner is misleading. Fix: change L267 to `const answers = artist.profile?.answers || {}` — or update /api/artists/{id} to include `answers` at top level for backward compat. Backend side: routes/questionnaire.py stores answers on artist_profiles.answers correctly, but Priya's DB row has NO `answers` key (fresh profile), so for the specific bug flow described in the review request the banner does happen to appear correctly — just for the wrong reason.",
+        "selector": "BookingFlow.jsx:267 `artist.answers || {}`",
+        "priority": "MEDIUM"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "BookingFlow step 2 on mobile",
+        "issues": [
+          "Order-summary sidebar (340px fixed) does not stack below main content on <768px — squeezes calendar/date-pick UI to unusable width. See ui_bugs entry above.",
+          "As a consequence, weekday header cells (S M T W T F S) shrink to <25px on mobile, and calendar day numbers become hard to tap (below 44x44 iOS/Material touch-target guideline)."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter42_suggested_and_calendar.py",
+    "/app/test_reports/pytest/iter42_run.xml"
+  ],
+  "action_items": [
+    "HIGH — Make BookingFlow.jsx:262 grid responsive: stack order-summary below main content on <768px (or use a .booking-grid CSS class with a media query). This is the root cause of the user's 'calendar looks bad' complaint.",
+    "MEDIUM — Fix booking-incomplete-warn on BookingFlow.jsx:267 to read `artist.profile?.answers` instead of `artist.answers`. Otherwise the banner falsely warns customers about every artist.",
+    "NIT — Consider adding `slug` alongside `user_id` in the suggested-{user_id} data-testid so E2E can target by human-readable slug too."
+  ],
+  "critical_code_review_comments": [
+    "BookingFlow.jsx:262 — inline grid template with hardcoded 340px sidebar; not responsive. This same pattern likely exists on other multi-column pages (ArtistProfile, Dashboards) — spot-check recommended.",
+    "BookingFlow.jsx:267 — reading `artist.answers` at top level despite server returning it nested under `profile`. Silent-failure UX bug: banner is technically working for Priya but for the wrong reason (missing key vs empty answers).",
+    "server.py — /api/artists/{user_id} response omits `answers` entirely from the payload (it's only nested inside `profile`). Consider exposing at top level for BC or documenting the correct path in a comment.",
+    "server.py L1197 — `artist_suggested` sort key uses rating_avg desc but all seeded artists have rating_avg=0 → order is effectively undefined. Not blocking, but note for future.",
+    "server.py — file is still 3,004 lines. Longstanding refactor debt already flagged in iter36+."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter42_suggested_and_calendar.py (new — 9 tests)"
+  ],
+  "success_rate": {
+    "backend": "100% (9/9 pytest)",
+    "frontend": "80% — Suggested Artists panel works end-to-end on desktop, but mobile calendar is broken due to a non-responsive layout in BookingFlow.jsx; incomplete-warn logic is faulty (reads wrong key)."
+  },
+  "test_credentials": "customer@booktalent.com / Customer@123 (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "None — read-only tests against seeded data (Priya user_id 22c3967c-e432-41e8-bdfb-a0a54b82ee1b, Mumbai, Bollywood Vocalist).",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend /api/artists/{user_id}/suggested endpoint is verified (uses ?date_str= not ?date= due to Python datetime.date clash). Priya (22c3967c-e432-41e8-bdfb-a0a54b82ee1b, Mumbai, Bollywood Vocalist) currently returns 2 suggested artists: Mohit Pandey and Dhiren Singh (both Stand-up Comedians / Mumbai). The AvailabilityCalendar itself renders correctly — cells go small on mobile ONLY because the parent BookingFlow layout is a fixed `1fr 340px` grid. Same calendar shown standalone on Artist Profile 'Availability' tab may not have this issue — worth checking. Real fix is in BookingFlow.jsx line 262 layout, not in AvailabilityCalendar CSS.",
+  "rca of the issue": "USER-REPORTED BUG (1) 'no option to book another suggested artist during checkout' — RESOLVED: SuggestedArtistsPanel renders correctly at bottom of step 2 with 2 complementary cards for Priya. Endpoint tested and stable. USER-REPORTED BUG (2) 'calendar not looking good' — ROOT CAUSE: BookingFlow.jsx line 262 uses `gridTemplateColumns: '1fr 340px'` as an inline style with no media query. On mobile (390px viewport) the fixed 340px order-summary sidebar consumes 87% of screen width, leaving 176px for the calendar column, which forces individual day cells to render at ~22px — well below the 38px spec and touch-target guidelines. Standalone AvailabilityCalendar renders at proper 38-44px cells; the bug is purely in the parent layout. Mitigation: add a media query (or React responsive hook) to collapse the sidebar below 768px and stack it above the main content. This should fully address the user's visual complaint."
+}

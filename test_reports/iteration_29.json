@@ -1,0 +1,52 @@
+{
+  "summary": "Sprint 7 verification (Elite Concierge, Smart Homepage personalization, Rider Wallet) — 23/23 backend pytest tests passed + full Playwright coverage of Priya artist Concierge, Admin Concierge, Admin Rider Wallet CRUD, Customer Smart Homepage personalized rails, and Customer BookingFlow rider-wallet-block. All acceptance criteria met.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter29_concierge_homepage_rider.py",
+    "/app/test_reports/pytest/iter29.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "concierge.py _post_message uses HTTPException(400) on empty body — good. No timezone issue (uses utcnow() passed in).",
+    "rider_wallet.py public_list city filter: if `city` query is provided, uses $or [{city:null},{city:regex}]. Correct.",
+    "rider_wallet.py admin_create ignores id/created_at overwrite risk since body is a strict VendorBody. Safe.",
+    "homepage.py personal rails: Counter import re-imports inside function (minor perf). Not critical.",
+    "AdminConcierge.jsx uses `concierge-thread-list` prefix which collides with `concierge-thread-<id>` selectors. Recommend renaming the container testid to `concierge-threads-container` to avoid ambiguity, though not blocking (filter can exclude).",
+    "BookingFlow.jsx step4-next correctly gated by travel_ack — works.",
+    "Rider Wallet Delete confirmation is via window.confirm — acceptable for admin-only tooling."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter29_concierge_homepage_rider.py (new)"
+  ],
+  "success_rate": {"backend": "100% (23/23)", "frontend": "100% (all critical flows verified)"},
+  "test_credentials": "Used the seeded creds in /app/memory/test_credentials.md (admin, customer, priya).",
+  "seed_data_creation": "Created and cleaned up TEST_UI_Hotel_29 rider vendor. Left Priya on ELITE plan. Concierge thread reopened for testing then a UI reply sent — leaves thread OPEN.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend endpoints all under /api. Concierge collections: concierge_threads / concierge_messages. Rider wallet: rider_vendors (seeded with 7 nationwide docs). Homepage personalized rails require search_history seeding via GET /api/search/artists with q/city/category. Priya's package d0f4c3c1-875e-408e-9668-d92a1e5fe06e has travel_required/accommodation_required/local_transport_required=True — reuse it to test BookingFlow step 4. In BookingFlow, time buttons use testid `time-<HHMM>` without leading zeros (e.g. time-700 for 7pm, time-1100 for 11pm). Package option testid is `pkg-opt-<id>`. The `concierge-thread-list` container testid collides with the row prefix `concierge-thread-<id>`; when selecting rows, exclude the container.",
+  "detailed_results": {
+    "backend": {
+      "concierge_gate": {"free_artist_403": true, "customer_403": true, "elite_upgrade": true},
+      "concierge_lifecycle": {"open_priority_100": true, "first_msg_stored": true, "send_grows_list": true, "admin_lists_by_priority": true, "admin_reply_visible_to_artist": true, "close_blocks_send_400": true},
+      "smart_homepage": {"anonymous_no_personalised": true, "personalised_present_after_search": true, "personalised_first_in_array": true, "codes_seen": ["continue_in_city","because_you_searched","rebook"]},
+      "rider_wallet_public": {"total_seed": 7, "hotels_ge3": true, "flights_ge2": true, "transport_ge2": true, "city_returns_nationwide": true},
+      "rider_wallet_admin": {"create_200": true, "patch_persists": true, "delete_404_on_repeat": true},
+      "pricing_regression": {"formula_matches": true, "no_rider_vendor_cost_in_pricing": true, "sample_from_existing_booking": true}
+    },
+    "frontend": {
+      "priya_concierge": {"sb-concierge_visible": true, "concierge_open_form_or_chat": true, "concierge_send_new_msg": true, "downgrade_shows_locked_and_upgrade_cta": true},
+      "admin_concierge": {"sb-concierge_visible": true, "admin-concierge_loads": true, "thread_list_rendered": true, "click_thread_opens_active": true, "admin_reply_sent_and_visible": true, "concierge-close-btn_present": true, "status_filter_open/closed_works": true},
+      "admin_rider_wallet": {"sb-rider-wallet_visible": true, "admin-rider-wallet_loads": true, "vendor_create_via_modal": true, "type_filter_flight_hides_hotel": true, "delete_removes_vendor": true},
+      "customer_homepage_personalized": {"first_rail_after_login": "rail-continue_in_city", "continue_in_city_present": true, "because_you_searched_present": true, "rebook_present": true, "anonymous_after_logout_no_personal": true},
+      "booking_flow_step4": {"review-travel-block": true, "rider-wallet-block": true, "vendor_cards_visible": 6, "cta_count": 6, "travel-ack-checkbox_gates_step4-next": true, "pricing_5pct_18gst_preserved": true}
+    }
+  }
+}

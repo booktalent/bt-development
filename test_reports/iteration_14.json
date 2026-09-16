@@ -1,0 +1,29 @@
+{
+  "summary": "Iter 14 BUG-FIX VERIFICATION (Realtime Chat token-key) — PASSED. Backend pytest: 15/15 green in 13.8s (WS presence on paid booking for both customer & artist, two-client realtime message propagation, bad-token rejection, unpaid 4402 rejection, REST fallback get/post, Iter 11/12/13 endpoint regression). Frontend E2E (Playwright, real browser, REACT_APP_BACKEND_URL): logged in as customer@booktalent.com, opened paid booking BT-260625-99978D '💬 Chat' modal → data-testid='chat-status' flipped from '○ Reconnecting' to '● Live' (class 'pill pill-green') in <1s, '2 online' shown, message send successful with ✓✓ read receipt. Bug fix (ChatBox.jsx line 59: 'token' → 'bt_token') is fully effective.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": { "ui_bugs": [], "integration_issues": [], "design_issues": [] },
+  "test_report_links": [
+    "/app/backend/tests/test_iter14.py",
+    "/app/test_reports/pytest/iter14_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "ChatBox.jsx WS effect only runs after access?.enabled becomes true; effect dependency array [bookingId, user, access?.enabled] is correct. Token now read from 'bt_token' — matches auth.jsx (key set on login at lines 20/27, cleared at line 33), api.js axios interceptor (line 9), CustomerDashboard.jsx, BookingFlow.jsx — single source of truth confirmed.",
+    "Minor UX: chat-status briefly shows '○ Reconnecting' for ~300-500ms while the WebSocket handshake completes. Consider initial state 'Connecting…' (neutral) instead of 'Reconnecting' (suggests failure) to avoid alarming users. Cosmetic only.",
+    "Iter 13 noted server.py was still 2,378 lines after the refactor — chat routes (REST + WS) remain in server.py because they share in-memory connection state with the WS endpoint. Future refactor could extract chat domain together with its WS manager.",
+    "WebSocket URL construction `${api.defaults.baseURL}/ws/chat/{bid}?token=…` relies on baseURL ending in /api — works correctly (verified WS upgrade 101 against wss://booktalent-audit.preview.emergentagent.com/api/ws/chat/{bid}). Kubernetes ingress preserves the WS Upgrade header for /api/ws/* paths.",
+    "Optional hardening: consider passing JWT via Sec-WebSocket-Protocol or a short-lived ticket cookie instead of query-string to avoid token leakage in proxy/access logs."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter14.py (created)",
+    "/app/test_reports/pytest/iter14_results.xml (generated)",
+    "/app/test_reports/iter14_chat_live.png (screenshot evidence — green '● Live' pill)"
+  ],
+  "success_rate": { "backend": "100% (15/15)", "frontend": "100% (E2E chat pill → Live verified)" },
+  "test_credentials": "customer@booktalent.com/Customer@123, priya@booktalent.com/Artist@123, admin@booktalent.com/Admin@123 — all working",
+  "seed_data_creation": "Sent 1 throwaway chat message ('iter14-rest-hello' via REST + 'hello iter14 e2e' via WS) on paid booking cca6a262-…-21dc13d52c7 — visible in chat history, no impact on business flow.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Bug fix verified end-to-end. /app/backend/tests/test_iter14.py is the new baseline for chat-related regression; reuse it together with test_iter12.py and test_iter13.py. Booking IDs stable: PAID=cca6a262-8393-4970-bd38-021dc13d52c7, UNPAID=060a549a-0952-4425-84c0-422210ee501e. WS URL pattern: wss://<host>/api/ws/chat/{booking_id}?token=<jwt>. Server emits {event:'presence', participants:[...]} as first frame on successful connect. Frontend localStorage key for JWT is 'bt_token' (do NOT use 'token').",
+  "rca of the issue": "ROOT CAUSE: ChatBox.jsx line 59 was reading the JWT with localStorage.getItem('token'); the rest of the app stores the JWT under localStorage.getItem('bt_token') (set in auth.jsx login, used in api.js axios interceptor). REPRODUCTION (pre-fix): customer login → open paid-booking chat → WS URL becomes /api/ws/chat/{bid}?token=null → backend's jwt_decode raises → server closes with code 4001 (invalid token) → onclose sets connected=false → pill stuck on '○ Reconnecting' forever. REST chat history still loaded fine because axios uses the correct key. MITIGATION: one-line change to localStorage.getItem('bt_token'). VERIFICATION: WS now negotiates 101 Switching Protocols against wss://…/api/ws/chat/{bid}?token=<valid-jwt>, server emits presence frame, ChatBox.onopen sets connected=true, pill flips to green '● Live' (verified visually and via class assertion 'pill pill-green'). Send/receive/typing/presence/read-receipt all functional in the live UI."
+}

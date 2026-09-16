@@ -1,0 +1,49 @@
+{
+  "summary": "Iter 90 duplication-cleanup verification. Frontend cleanups (/agency-legacy → 404, Settings→'CMS Copy', kyc-v2 pill in AdminKYC) all PASS. Backend GET /admin/kyc?status=approved now includes v2_status, artist_profiles.kyc_status contains only v2 names (no legacy strings), kyc_backfill logs 'fixed=X/17' at boot. HOWEVER — a critical duplication bug was uncovered that Iter 90 missed: /kyc/submit is REGISTERED TWICE (routes/v2_flow.py:146 AND routes/kyc.py:65). v2_flow is registered first (server.py:4447) so it SHADOWS routes/kyc.py. The v2_flow variant only touches artist_profiles.kyc_status via _flip_kyc — it does NOT create kyc_submissions rows, does NOT update users.kyc_status/kyc_legacy_status/verified, and does NOT call kyc_sync.sync_kyc_status. Reproduced live: POST /kyc/submit with valid docs for priya sets artist_profiles.kyc_status='kyc_under_review' but users.kyc_status stays stale ('live'), and no kyc_submissions row is created. Consequence: POST /admin/kyc/decide then fails with 404 'No KYC submission found for this user' — exactly the tri-collection desync Iter 90 was supposed to eliminate. Bonus: v2_flow allows a `live` artist to regress back to `kyc_under_review` with no state-machine guard. All Iter 87-89 regressions still green (audit-logs/unified, reports/summary, payouts/retry-queue, report-schedules, reports/manager-scorecard, whatsapp/templates-status, /ops/dump/anytoken=404). Backfill idempotency mild concern: on 3 consecutive boots we saw fixed=17→1→1→(after code reload)→16, i.e. one user still drifts every boot — likely because the /kyc/submit shadow route keeps flipping artist_profiles without touching users, and backfill re-syncs it each start.",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "POST /api/kyc/submit", "issue": "DUPLICATED — routes/v2_flow.py shadows routes/kyc.py. Effective handler bypasses kyc_sync helper: no kyc_submissions row, users.kyc_status not updated. Iter 90's whole tri-collection-sync goal is broken for the artist-submit path.", "priority": "CRITICAL"},
+      {"endpoint": "POST /api/admin/kyc/decide", "issue": "Returns 404 'No KYC submission found for this user' for any artist whose submission went through the (shadowing) v2_flow handler — i.e. every real artist submission today. Blocks admin approve/reject flow via this endpoint.", "priority": "CRITICAL"},
+      {"endpoint": "POST /api/kyc/submit (v2_flow)", "issue": "State-machine violation: an artist already at v2 status 'live' can POST /kyc/submit and be moved back to 'kyc_under_review' — no guard on regressive transitions.", "priority": "HIGH"}
+    ],
+    "minor": [
+      {"endpoint": "kyc_sync.backfill_all", "issue": "Backfill not fully idempotent in production: fixed=1 keeps recurring boot-to-boot. Root cause likely the shadow /kyc/submit route that keeps flipping artist_profiles.kyc_status without cascading to users.*. Fixing the duplicate route should make backfill converge to fixed=0."},
+      {"endpoint": "GET /api/admin/kyc?status=<v2_name>", "issue": "Admin queue filter uses users.kyc_legacy_status (4-state) — cannot filter for post-approval v2 states like tnc_pending / agreement_generated / live from this endpoint. Only 'v2_status' is returned. Consider adding a v2-state filter param."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Admin approves KYC via legacy AdminKYC row → View / Approve buttons", "issue": "If admin uses the legacy /admin/kyc/decide endpoint (wired to the 'View' row buttons here), the endpoint 404s for artists that submitted via v2 route. Admins must use the newer /admin/kyc/{artist_id}/review (v2_flow) to actually make progress. UI should either point at v2, or backend should auto-create/backfill kyc_submissions from artist_profiles.", "affected_selectors": ["[data-testid^=\"kyc-view-\"]", "[data-testid^=\"kyc-approve-\"]"]}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter90.py",
+    "/app/test_reports/pytest/iter90_results.xml"
+  ],
+  "action_items": [
+    "CRITICAL: Remove one of the two /kyc/submit routes. Recommend keeping v2_flow's schema (documents dict) but having it call kyc_sync.sync_kyc_status(user_id=..., legacy_status='pending') AND upsert a kyc_submissions row so admin_kyc_decide keeps working. Alternatively delete v2_flow's /kyc/submit and update FE to use routes/kyc.py's schema.",
+    "CRITICAL: Add state-machine guard in v2_flow._flip_kyc / /kyc/submit — reject transitions from {live, tnc_pending, agreement_generated, kyc_approved} back to kyc_under_review unless admin explicitly requests resubmission.",
+    "Wire admin frontend row buttons to whichever /admin/kyc/*/review endpoint is canonical, and delete the other. Currently AdminKYC.jsx likely still hits /admin/kyc/decide (legacy) — verify.",
+    "After the above fix, re-run kyc_sync.backfill_all and confirm fixed=0 on second boot (true idempotency).",
+    "Consider adding a v2_status filter to GET /api/admin/kyc so ops can list tnc_pending / agreement_generated / live cohorts."
+  ],
+  "critical_code_review_comments": [
+    "Duplication of business endpoints across routes/v2_flow.py and routes/kyc.py is exactly the hygiene issue this iteration set out to fix; the KYC data-mirror was canonicalised but the WRITE PATHS were not. Consolidate all KYC writes behind kyc_sync.sync_kyc_status.",
+    "kyc_sync.py V2_TO_LEGACY map has overlapping keys — the same key ('pending'/'approved'/'rejected'/'needs_resubmission') is present in both the v2→legacy and legacy→legacy compat rows. Python dict semantics mean the later 'compat' entries silently overwrite the earlier v2 ones. Fine because values match, but confusing — split into two dicts or add a comment.",
+    "kyc_sync.sync_kyc_status uses upsert=False for kyc_submissions.update_one — this is a foot-gun when combined with the shadow /kyc/submit route because that route never creates the row, so admin_kyc_decide's downstream sync becomes a no-op on kyc_submissions. Either (a) upsert=True with sensible defaults, or (b) guarantee every submit path creates the row.",
+    "server.py line 4447 registers v2_router BEFORE line 4523 (routes.kyc). FastAPI resolves the first matching path, so kyc.py's /kyc/submit is dead code today. Either delete it or re-order includes with an explicit comment.",
+    "routes/v2_flow.py._flip_kyc uses upsert=True on artist_profiles — a KYC state change on a non-existent artist profile silently creates one. Prefer upsert=False + explicit 404."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter90.py"
+  ],
+  "success_rate": {"backend": "75% (9/12 — 3 KYC-sync tests fail, correctly exposing the duplication bug)", "frontend": "100% (agency-legacy 404, CMS Copy label, kyc-v2 pill all verified)"},
+  "test_credentials": "admin@booktalent.com/Admin@123, priya@booktalent.com/Artist@123 (both work)",
+  "seed_data_creation": "Test submitted a KYC application for priya (mutated her artist_profiles.kyc_status from 'live' → 'kyc_under_review' via the shadow v2_flow route). Then admin_kyc_decide 404'd, so state was left at kyc_under_review. Main agent should either (a) manually run kyc_sync.sync_kyc_status(user_id=priya, v2_status='live') to restore, or (b) rely on the next backfill run + a manual v2_flow /admin/kyc/{artist_id}/review call.",
+  "retest_needed": true,
+  "main_agent_can_self_test": false,
+  "context_for_next_testing_agent": "Iter 90 shipped kyc_sync.py + /agency-legacy removal + 'CMS Copy' rename — all confirmed. The kyc_sync helper works when called (admin decide path uses it correctly), but the /kyc/submit ARTIST path is still broken because v2_flow.py shadows routes/kyc.py. See test_iter90.py::test_submit_then_decide_syncs_all_three for a live repro. Tests 1,2,5-11 all pass; tests 3,4 fail as documented evidence. To retest after fix: (a) confirm ONLY one /kyc/submit route in FastAPI routing table, (b) POST /kyc/submit as artist → kyc_submissions row with status=pending must exist AND users.kyc_status='kyc_under_review', (c) POST /admin/kyc/decide {artist_id, decision:'approve'} → 200 + all 3 collections show mapped states, (d) kyc_sync.backfill_all should return fixed=0 on second boot.",
+  "rca of the issue": "Two /kyc/submit routes exist. FastAPI registers v2_router (line 4447 in server.py) before routes.kyc (line 4523), so v2_flow.py:146 wins the route match. That handler calls _flip_kyc → artist_profiles.update_one only, bypassing kyc_sync entirely. Since Iter 90 only wired kyc_sync into routes/kyc.py::kyc_submit (line 115), the sync path is unreachable for real artist submissions. Fix: consolidate to a single /kyc/submit that calls kyc_sync.sync_kyc_status(legacy_status='pending') + upserts a kyc_submissions row + writes artist_profiles extra (documents, tech_rider_text, bank). Mitigation until fix: admins can use v2_flow endpoint /admin/kyc/{artist_id}/review (which flips artist_profiles.kyc_status directly) instead of legacy /admin/kyc/decide."
+}

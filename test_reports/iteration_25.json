@@ -1,0 +1,38 @@
+{
+  "summary": "Sprint 2 first-pass verification (iter25) — Chunked/resumable filesystem uploads + MediaUploader + duplicate-key fix. 14/14 pytest cases pass (after one wrong-assertion fix). Verified end-to-end: /api/uploads/init returns upload_id, chunk_size=4194304, expected_chunks=3, max_bytes=5368709120. Three 4 MB PUT chunks each return {ok, received_bytes} cumulative. /uploads/{id}/complete returns {id, size=12582912, has_thumb, mime, type, title}. GET /api/media/{id}/file returns 200 with content-length=12582912 and content-type=application/octet-stream. DB verified: db.media has storage='filesystem', path=/app/backend/uploads/media/{user_id}/{media_id}.bin (file present on disk, 12,582,912 bytes). db.upload_sessions has status='completed', received_bytes=size, media_id set. Image thumbnail: 3.4 MB JPEG uploaded, thumb file /app/backend/uploads/media/{user_id}/{media_id}-thumb.jpg exists (~7 KB), GET /media/{id}/thumb returns 200 image/jpeg. Resume: 2/3 chunks + status returns {status:'in_progress', received_bytes:8388608, size:12582912}; re-sending chunk 1 returns {ok:true, resumed:true}. Tenant isolation: customer gets 404 on priya's upload_id (status/chunk/complete). Size cap: >5 GB, 0, negative all → 413. Invalid type 'xyz' → 400. Legacy /api/media/upload (base64) still works + /media/{id}/thumb still works for legacy. Landing page: 0 duplicate-key warnings (dedupe useEffect works). CRA 'Compiled successfully!' — MediaUploader imports cleanly with data-testids on dropzone, file input, queue, progress bar, status, remove button. ffmpeg NOT installed on pod (expected per problem statement) — video thumbs would gracefully fall back to has_thumb=false; not exercised because no video uploaded. All Sprint 1 regression endpoints healthy (cities, search/ai, wallet/me, kyc/me, auth/login).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter25_uploads.py",
+    "/app/test_reports/pytest/iter25.xml"
+  ],
+  "action_items": [
+    "None for Sprint 2 first pass — all targeted features PASS.",
+    "Sprint 2.5 follow-ups per main agent's plan: (a) wire MediaUploader into ArtistDashboard.jsx media tab; (b) install ffmpeg on VPS/pod to enable video thumbnails; (c) background job runner for ffmpeg video compression."
+  ],
+  "critical_code_review_comments": [
+    "routes/uploads.py line 168: `new_total > session['size'] + CHUNK_SIZE` allows uploads to overshoot by up to 4 MB before rejection. Acceptable for now (final size mismatch check at complete catches it, line 214 uses `abs(final_size - session['size']) > CHUNK_SIZE`), but consider tightening to `> session['size']` on the chunk endpoint.",
+    "routes/uploads.py line 149: idempotent-resend check only compares `chunk_path.exists() and chunk_path.stat().st_size > 0` — if a chunk previously failed midway and left a truncated file on disk, it will be treated as 'already received' and never re-uploaded. Consider comparing chunk size to expected chunk_size (CHUNK_SIZE for non-final chunks) before short-circuiting.",
+    "routes/uploads.py line 291: `/media/{id}/file` has NO auth — the docstring says gallery/video/reel/portfolio are public, but if a private type like 'brand_deck' is ever uploaded via this route, it would also be served publicly. Consider gating on ALLOWED_TYPES membership vs 'public' subset explicitly.",
+    "MediaUploader.jsx line 35-38: `authHeader` memoised WITHOUT deps — token read once at component mount. If user logs out/in during a session with the uploader open, the header will be stale. Minor; component is short-lived enough that it likely doesn't matter.",
+    "server.py line 785: /media/{id}/thumb correctly serves FileResponse from disk for storage=='filesystem' BEFORE falling back to base64. LGTM.",
+    "server.py line 855: legacy /api/media/{id} always base64-decodes doc['data'] — will 500 if a filesystem-stored media doc (no `data` field) is ever fetched via this endpoint. Consider adding a branch that serves the filesystem file or 302-redirects to /media/{id}/file when storage=='filesystem'. Not blocking Sprint 2 since the frontend now uses /media/{id}/file for filesystem media."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter25_uploads.py (NEW — 14 pytest cases)"
+  ],
+  "success_rate": {"backend": "100% (14/14 pytest)", "frontend": "100% (Landing loads with 0 warnings/errors, MediaUploader imports clean)"},
+  "test_credentials": "priya@booktalent.com / Artist@123 (used), customer@booktalent.com / Customer@123 (used). Both worked.",
+  "seed_data_creation": "Created ~5 TEST_ media docs in db.media (filesystem-stored) + corresponding upload_sessions during test runs. Filesystem artifacts under /app/backend/uploads/media/22c3967c-…-e1b/. Safe to leave; all prefixed TEST_.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iter25 baseline: routes/uploads.py chunked filesystem uploads verified end-to-end. MediaUploader.jsx exists as standalone component (default export function MediaUploader({type, accept, maxFiles, onComplete})), NOT yet embedded in any page. Duplicate-key fix in Landing.jsx (useEffect dedup by user_id) verified. ffmpeg is NOT installed in the pod — video-thumb path in routes/uploads.py returns has_thumb=false gracefully; if you want to test video thumbnails, run `apt install -y ffmpeg` first. MEDIA_ROOT=/app/backend/uploads/media, TMP_ROOT=/app/backend/uploads/tmp. Legacy /api/media/upload (base64, 12 MB cap) untouched. Legacy /api/media/{id} still streams raw bytes (NOT JSON metadata) — the review-request wording 'returns the doc' is misleading; that endpoint has always returned binary. Sprint 2.5 will wire MediaUploader into ArtistDashboard media tab.",
+  "rca_of_the_issue": "N/A — first-pass verification, no bug reproduction required. One test-assertion bug in my own test file (assumed /media/{id} returns JSON, but it streams raw bytes) — fixed in-place to assert content-type=image/* + non-empty body."
+}

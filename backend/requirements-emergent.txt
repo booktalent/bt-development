@@ -1,0 +1,15 @@
+# BookTalent — OPTIONAL dependencies (Emergent-hosted, for AI Semantic Search)
+# --------------------------------------------------------------------
+# These packages power the /api/search/ai endpoint via the Emergent Universal
+# LLM Key. They are NOT required — the endpoint auto-falls-back to a fast
+# regex-based keyword search if these are missing.
+#
+# Install ONLY if you have EMERGENT_LLM_KEY in your backend/.env and want
+# real semantic-search over the artist catalogue.
+#
+# Install command (from anywhere with internet):
+#   pip install -r requirements-emergent.txt \
+#       --extra-index-url https://d33sy5i8bnduwe.cloudfront.net/simple/
+#
+# --------------------------------------------------------------------
+emergentintegrations==0.2.0

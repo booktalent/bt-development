@@ -1,0 +1,45 @@
+{
+  "summary": "Iter 64 verification: Easebuzz-only refund system + agency earnings + Razorpay removal. Backend: 13/13 tests pass (including 2 refund unit tests with mocked Easebuzz Refund API). Frontend smoke: Admin Refunds tab renders correctly, Booking Flow Step 5 is Easebuzz-only (no Razorpay imports/UI in BookingFlow.jsx or PaymentStep.jsx), Agency Earnings drawer opens and renders bookings table for ACTIVE artists (DJ Vortex, Priya Sharma). One minor UX issue found: Earnings button is shown for PENDING agency roster artists too, but backend returns 404 for them and the drawer stays blank.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/agency/artist/{artist_id}/earnings", "issue": "Returns 404 when the artist is in the agency roster but has status='pending' (invited-not-yet-accepted). Frontend still exposes an 'Earnings' button for them, resulting in a blank drawer. Either return 200 with empty totals/bookings, or hide the button on the frontend for pending rows. Repro: login agency@booktalent.com, /agency/artists, click Earnings on 'Deepika Rao' (status PENDING) — GET /api/agency/artist/c57bc45c-d236-4a47-a94a-4241f65e4c61/earnings → 404."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "agency/modules/Artists.jsx (Earnings drawer)", "issue": "For PENDING roster artists, the drawer opens, loading spinner disappears, but nothing renders (no bookings table, no empty state) because the API 404's. Consider disabling the Earnings action when status !== 'active', or handling the 404 with a friendly 'Earnings not available until the artist accepts the invite' message.", "selector": "[data-testid^='ag-view-earnings-']", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter64_refunds.py",
+    "/app/backend/tests/test_iter64_review.py",
+    "/app/test_reports/pytest/iter64_review.xml"
+  ],
+  "action_items": [
+    "OPTIONAL/LOW: Improve UX around Earnings button for PENDING agency-roster artists — either return 200 with empty payload from /api/agency/artist/{id}/earnings, or hide the button until status==active."
+  ],
+  "critical_code_review_comments": [
+    "Razorpay is verifiably removed from all critical paths: BookingFlow.jsx, PaymentStep.jsx have zero razorpay refs. Only legacy filter values 'razorpay' / 'razorpay_mock' remain as historical dropdown options inside AdminPaymentReconciliation.jsx, which is intentional for viewing legacy DB rows.",
+    "Removed endpoints (/payments/init, /payments/verify, /payments/webhook, /payments/config, /payments/batch/init, /payments/batch/verify, /payments/{id}/refund) all return 404/405 → confirmed not routable.",
+    "/api/admin/refunds returns the expected {items,total,page,limit} pagination envelope.",
+    "/api/admin/refunds/{id}/retry endpoint exists (returns 4xx for unknown id, not 404 route-not-found).",
+    "auto_refund helper: success path marks payment.status='refunded' + records refund_id/refund_amount/refund_status='successful'; failure path records refund_status='failed' + refund_error + creates admin notification of type='refund.failed'. Idempotency guard prevents duplicate refunds via refund_status=='successful' check.",
+    "/api/agency/artist/{id}/earnings returns full totals block (total_earnings, completed_earnings, upcoming_earnings, confirmed_booking_value, completed_events, upcoming_events, commission_pct, agency_commission_earned) plus per-booking fields (ref, event_date, customer_name, artist_fee, platform_charges, agency_commission, status, payment_status, refund_status) — matches spec exactly.",
+    "Confirmed no created_at filter on agency earnings endpoint — newly-added agencies see historical bookings for the artist.",
+    "Booking rejection on a pending_payment booking transitions status to 'rejected' cleanly with no refund attempt (no completed payment exists) — no crash."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter64_review.py (new)"
+  ],
+  "success_rate": {"backend": "100% (13/13)", "frontend": "95% (all critical smoke passes; 1 minor UX issue on pending artist earnings)"},
+  "test_credentials": "As per /app/memory/test_credentials.md — admin@booktalent.com/Admin@123, agency@booktalent.com/Agency@123, customer@booktalent.com/Customer@123",
+  "seed_data_creation": "None persisted. test_iter64_refunds.py stages then cleans up its own payment/notification/user docs. test_iter64_review.py creates one live booking as customer@booktalent.com against DJ Vortex which is then rejected by admin (stays in DB in 'rejected' state, harmless).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "For Iter 64: run `pytest /app/backend/tests/test_iter64_refunds.py /app/backend/tests/test_iter64_review.py -v`. Frontend Earnings drawer works via /agency/artists route (not /agency). Only ACTIVE agency-roster artists have valid earnings endpoints; PENDING roster artists 404. Admin Payment Reconciliation is reached via /admin then click 'Payment Reconciliation' link — the Refunds tab has data-testid='tab-refunds'. Booking Flow PaymentStep uses data-testid='easebuzz-summary' + 'pay-now-btn' with no Razorpay code anywhere.",
+  "rca of the issue": "Minor Earnings-on-pending-artist issue: /api/agency/artist/{id}/earnings (in agency_roster.py) likely does a lookup that requires the artist to have accepted the roster invite. When status=='pending' the join/filter returns no artist record → 404. Mitigation: either (a) in the endpoint, when the roster entry exists but the artist has no bookings yet, return 200 with zeroed totals and empty bookings[]; or (b) in Artists.jsx, conditionally render the Earnings button only when r.status === 'active'."
+}

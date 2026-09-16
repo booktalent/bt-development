@@ -1,0 +1,54 @@
+{
+  "summary": "Iter 57 UX polish — 16/18 backend pytest passed (2 xfails documenting known RBAC leaks in /admin/artists + /admin/refunds inherited from iter 55). All 3 iter-57 frontend flows verified end-to-end: (1) RBAC sidebar guardrails: Super Admin sees 25 items, Finance sees 9 items (EXACT match: overview, bookings, concierge, refunds, subscriptions, users, outstation-report, reports, audit). Support sees 10 items (spec-9 + extra 'audit') and Content sees 12 items (spec-11 + extra 'audit') — see bug #1 below. Hidden tabs (admins, master, settings, providers, disputes) never render for finance/support/content — effectiveTab fallback confirmed (no sb-admins DOM node on any non-super role). (2) Nudge chip deep-link: Priya login → 8 golden chips (qn-missing-availability … qn-missing-tell-us-about-yourself) rendered. Click qn-missing-availability → tab flips to questionnaire, wizard jumps to step 9, heading 'Availability' — case-insensitive slug match works. Main qn-nudge-cta (no section) opens wizard at step 0 (heading 'Tell us about yourself') — no crash. Step-nav click restriction relaxed — clicking q-step-5 out of order jumps successfully. (3) Media chip fallback: seeded intro_video + profile_photo on Priya via Mongo → both chips rendered as qa-media-chip-{qid} (backend heuristic MATCHED existing gallery media, so 'missing' variant not reached; matched variant + text 'View in gallery →' rendered correctly). Priya baseline (no media answers) shows qa-panel with 0 media chips — matches spec.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/admin/artists", "issue": "Uses admin_only, not require_permission('artists.moderate'). Finance admin can hit this endpoint (200) even though the sidebar hides it. Pre-existing since iter 55; iter 57 sidebar filter masks it but backend gap remains."},
+      {"endpoint": "/api/admin/refunds", "issue": "Uses admin_only, not require_permission('payments.refund'). Support admin gets 200 despite lacking payments.refund. Same pattern as above."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "AdminDashboard SIDEBAR entry 'audit'", "issue": "Audit sidebar item has no `perm` field (line 46 of AdminDashboard.jsx), so it's shown to ALL admins including Support and Content. Backend /admin/audit-log requires admins.manage → clicking audit as Support/Content will 403. Spec expected 9 items for Support (no audit) but actual is 10; expected 11 for Content but actual is 12. Fix: add `perm: \"admins.manage\"` to the audit sidebar entry.", "selector": "sb-audit", "priority": "MEDIUM"},
+      {"component": "QuestionnaireWizard q-progress", "issue": "When a chip deep-links to step N, all steps 0..N-1 are visually marked 'done' (green checkmark) even though the artist has not actually filled them (they're still in sections_missing). Purely visual — click-through to earlier steps still works and Save/Continue re-validates. Consider using a 'visited' state distinct from 'answered'.", "selector": ".q-progress-step.done", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "ArtistProfile /artist/:id", "issues": ["React hydration warning: <span> inside <option> in package <select> (dev-only wrapper artifact from the Emergent x-source-* dev instrumentation — not a real bug in prod build). No user-visible impact."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter57_rbac_guardrails.py",
+    "/app/test_reports/pytest/iter57_run.xml"
+  ],
+  "action_items": [
+    "Add `perm: 'admins.manage'` to the AdminDashboard.jsx SIDEBAR entry with id='audit' (line 46) so Support/Content admins don't see a tab that 403s when clicked.",
+    "Tighten backend RBAC: switch /admin/artists dependency from admin_only → require_permission('artists.moderate'), and /admin/refunds → require_permission('payments.refund'). Pre-existing gaps but they undermine the iter 57 sidebar-filter contract.",
+    "OPTIONAL — Introduce a 'visited' vs 'answered' distinction in QuestionnaireWizard's progress dots so deep-linking past unfilled sections doesn't paint them as done."
+  ],
+  "critical_code_review_comments": [
+    "AdminDashboard.jsx:74 filter `!x.perm || (myPerms && myPerms.has(x.perm))` is correct — audit item is missing perm ONLY because of a manual omission on line 46, not a bug in the filter logic itself.",
+    "AdminDashboard.jsx:80 effectiveTab fallback is a nice defensive touch — verified: manually setting tab='admins' as Finance still renders Overview because visibleSidebar doesn't include 'admins'. Prevents empty white space when perms narrow mid-session.",
+    "QuestionnaireWizard.jsx:95-101 one-shot deep-link effect gated by `deepLinkApplied` correctly avoids re-applying when the sections list mutates (e.g. answers['category'] change re-fetches Layer 2). Case-insensitive .toLowerCase() match handles 'Availability'-titled section == 'availability' chip.",
+    "QuestionnaireWizard.jsx:149 progress-step click now allows unrestricted jumps (Iter 57 relaxation) — verified in test. Note: `next()` still validates required fields on submit, so users can wander but can't skip past a required section without filling it.",
+    "ArtistDashboard.jsx:150 `onOpen` chip callback sets wizardStartSection THEN setTab. React batches these so QuestionnaireWizard mounts with startSection populated on first render — good ordering.",
+    "ArtistProfile.jsx:762-763 testid conditional `isMissing ? 'qa-media-missing-{qid}' : 'qa-media-chip-{qid}'` cleanly disambiguates the two variants for test agents.",
+    "server.py:2780 /admin/artists uses `admin_only` — inconsistent with /admin/artists/{uid}/feature at 3157 which correctly uses require_permission('artists.moderate'). Fix should be trivial (one-line dependency swap).",
+    "server.py:3280 /admin/refunds uses `admin_only` — should be require_permission('payments.refund'). Same one-line swap."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter57_rbac_guardrails.py (NEW — 18 tests, 16 pass + 2 documented xfails)",
+    "/app/test_reports/pytest/iter57_run.xml",
+    "/app/test_reports/iteration_57.json"
+  ],
+  "success_rate": {
+    "backend": "89% (16/18 passed, 2 xfail on pre-existing RBAC leaks; all iter 56 regression + iter 57 role-preset shape + iter 57 admin creation flows green)",
+    "frontend": "95% (sidebar filter works for all 4 roles; nudge chip deep-link works; media chip renders correctly. Single UX bug: audit sidebar leaks to support/content admins.)"
+  },
+  "test_credentials": "Super Admin: admin@booktalent.com/Admin@123. Artist: priya@booktalent.com/Artist@123. (iter57_finance/support/content admins were created + deleted within this run — no residue.)",
+  "seed_data_creation": "Temporarily set answers.intro_video=true + answers.profile_photo=true on Priya's artist_profile to validate media chip render — REVERTED at end of run ($unset via Mongo). Cleanup verified: prof.answers.intro_video is False (not present), same for profile_photo. iter57_ admins fully cleaned.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Iter 57 UX polish is functionally correct except for one small omission: audit sidebar item has no perm gate → non-manager admins see the tab and get 403 on click. If main agent adds perm: 'admins.manage' to line 46 of AdminDashboard.jsx, Support/Content sidebars will match spec (9/11 items). Backend RBAC leaks on /admin/artists + /admin/refunds are inherited from iter 55 — recommend fixing them as belt-and-braces to the iter 57 sidebar filter. Regression file: /app/backend/tests/test_iter57_rbac_guardrails.py — re-run with `pytest -v` after any RBAC changes. Key new testids for iter 57: qn-missing-{section-slug} (chips), qa-media-missing-{qid} (missing variant), effectiveTab (implicit via `sb-*` presence check).",
+  "rca_of_the_issue": "N/A — iter 57 acceptance criteria substantially met. The audit-sidebar-leak is a one-line omission (missing `perm` key on line 46 of AdminDashboard.jsx SIDEBAR array). The two backend RBAC gaps predate iter 57 (last touched in iter 55 when RBAC was rolled out; those two endpoints were missed during the require_permission conversion sweep)."
+}

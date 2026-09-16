@@ -1,0 +1,49 @@
+{
+  "summary": "Iteration 2 — Tested new Razorpay-real-or-mock payment integration, PDF contract/invoice generation, refund endpoint and webhook fallback, plus regressed prior MVP features. Backend: 35 passed / 1 skipped (36 total) including 7 brand-new tests (TestPaymentsConfig, TestPaymentInitGateway, TestContractsAndInvoicePDF, TestRefund, TestWebhook). Frontend: customer end-to-end booking flow through 5 steps with mock OTP auto-applied banner verified — verify call returns 200, booking-ref BT-260624-42B2BB generated, success-dl-invoice triggers download of a 2,715-byte valid PDF (%PDF- magic). Pay button label correctly shows 'Pay ₹3,407 to Confirm' (no 'via Razorpay' since RAZORPAY_KEY_ID is empty). Webhook returns {ok:false,reason:'razorpay_disabled'} when keys absent. Refund credits customer wallet and is admin-only (403 for customer).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/contracts/mine (as admin)", "issue": "Admin gets empty list — they cannot see all contracts. Other endpoints (e.g., /admin/bookings) do allow admin to see everything. Consider letting admin role see all contracts for moderation/disputes."},
+      {"endpoint": "PUT /api/packages/{id}", "issue": "Carried over from iter 1 — still expects full PackageBody, partial updates return 422."},
+      {"endpoint": "GET /api/coupons/validate", "issue": "Carried over — still auth-protected; if you want public coupon hints on checkout you'd need to drop auth."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "ArtistProfile.jsx ~line 219", "issue": "Carry-over from iter 1: <select><option><span ...></span></option></select> still triggers React hydration error in console on every artist page (logged again on this run).", "selector": "select.field-input > option > span", "priority": "MEDIUM"},
+      {"component": "Document title", "issue": "Carry-over: page title remains 'Emergent | Fullstack App'.", "selector": "head > title", "priority": "LOW"}
+    ],
+    "integration_issues": [
+      {"flow": "Customer dashboard bookings table", "issue": "Navigating to /customer/bookings landed on the homepage. The new dl-contract-{id} / dl-invoice-{id} testids on BookingsTable could not be located by URL. They likely live inside /customer (tabbed UI) — main agent should verify the testids actually render on the bookings tab.", "affected_selectors": ["[data-testid^=dl-invoice-]", "[data-testid^=dl-contract-]"]}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Confirm dl-invoice-{id} and dl-contract-{id} testid buttons render on the customer's bookings tab inside /customer (route doesn't exist at /customer/bookings).",
+    "Allow admin role to list contracts in GET /api/contracts/mine (for moderation/dispute resolution).",
+    "Carry-over: fix <option><span> hydration warning in ArtistProfile.jsx.",
+    "Carry-over: set proper <title> in /app/frontend/public/index.html.",
+    "When Razorpay keys are added later, retest /api/payments/init returning gateway:'razorpay' + order_id and the live signature verification branch in /api/payments/verify."
+  ],
+  "critical_code_review_comments": [
+    "server.py grew further with payments/PDF endpoints — definitely needs splitting into routers (auth, artists, bookings, payments, contracts, admin).",
+    "_create_contract uses await db.contracts.insert_one but is called inside booking_action without awaiting concurrent media/notifications — fine, but on accept() a contract is created on each accept call; if accept fires twice you'd get duplicate contracts. Consider upserting on booking_id.",
+    "Refund endpoint /api/payments/{payment_id}/refund credits the wallet via _refund_to_wallet AND, when live, calls razorpay_client.payment.refund. If the live refund succeeds but DB write fails, wallets/transactions can desync. Wrap in try/except with rollback or idempotency.",
+    "Webhook handler returns 200 with ok:false when disabled — that's per-spec, but verifying signature only AFTER reading the body & checking flags; ensure logging hides webhook secret.",
+    "PDF endpoints stream bytes synchronously inside async path via ReportLab — fine for <100KB PDFs but could be moved to a background task for larger contracts."
+  ],
+  "updated_files": [
+    "/app/backend/tests/backend_test.py (added 7 new test classes for payments config, mock gateway, contracts/invoice PDFs, refund, webhook)"
+  ],
+  "success_rate": {"backend": "100% (35/35 passed, 1 skipped)", "frontend": "~95% — end-to-end booking flow + invoice PDF download succeeded; only the dashboard download buttons couldn't be verified at the URL tried"},
+  "test_credentials": "Admin admin@booktalent.com/Admin@123, Customer customer@booktalent.com/Customer@123, Artist priya@booktalent.com/Artist@123, Mock OTP 123456. RAZORPAY_KEY_ID/SECRET/WEBHOOK_SECRET all empty in /app/backend/.env (verified — mock mode active).",
+  "seed_data_creation": "Several TEST_* customers & bookings on Priya were created and left in DB (intentional for end-to-end traceability). One real customer booking (Acoustic Solo, 2027-09-15, ref BT-260624-42B2BB) was created+paid+invoiced via the UI run.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "RAZORPAY_* env keys empty → mock mode (gateway='razorpay_mock', OTP 123456). When keys filled later, /api/payments/init returns gateway='razorpay' with razorpay.order_id+key_id, /api/payments/verify expects razorpay_order_id+payment_id+signature, and /api/payments/webhook will properly verify HMAC. Frontend BookingFlow.jsx testids: step1-next, step2-next, step3-next, step4-next, pay-now-btn, payment-gateway-banner, booking-ref, success-dl-invoice. Booking guests field is string. Login route /login, token in localStorage as bt_token.",
+  "rca of the issue": "No critical bugs — feature works end-to-end. The one routing observation (/customer/bookings → home) is likely just because BookingsTable is rendered inside a tabbed dashboard at /customer, not a separate route."
+}

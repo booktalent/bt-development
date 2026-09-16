@@ -1,0 +1,49 @@
+{
+  "summary": "Iter 32 (Outstation Business Rule) — Backend 100% passing. Public settings whitelist works, no secret leak, admin PUT/GET round-trip works, booking snapshots (is_outstation, artist_city, event_city) are correct, contract text injects OUTSTATION LOGISTICS + FEE INCLUSION NOTE for outstation bookings and omits the outstation block for same-city bookings, 5%+18% GST pricing intact. Frontend has a CRITICAL wiring bug — outstation notice, review notice and ack gate NEVER show because BookingFlow.jsx checks `artist.city` but /api/artists/{id} returns city at `artist.profile.city`.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "BookingFlow.jsx (step 3 & step 4)",
+        "issue": "Outstation detection uses wrong property path — `artist.city` is undefined because /api/artists/{id} returns `{ profile: { city }, packages, user, ... }`. As a result: `outstation-notice` never renders on Step 3, `review-outstation-notice` and `outstation-ack` never render on Step 4, and `step4-next` is never gated. The entire outstation UI feature is invisible to customers. Same-city short-circuit therefore also technically works only by accident (both sides undefined vs 'Delhi' → false).",
+        "selector": "[data-testid=outstation-notice] / [data-testid=review-outstation-notice] / [data-testid=outstation-ack]",
+        "priority": "CRITICAL"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter32_outstation.py",
+    "/app/test_reports/pytest/iter32.xml"
+  ],
+  "action_items": [
+    "In /app/frontend/src/pages/BookingFlow.jsx replace all 5 occurrences of `artist.city` / `artist?.city` with `artist.profile?.city` / `artist?.profile?.city` (lines 406, 421, 533, 545, 562).",
+    "After fix, re-verify: Step 3 city='Delhi' shows outstation-notice with 'Mumbai' & 'Delhi', city='Mumbai' hides it; Step 4 shows review-outstation-notice + outstation-ack; step4-next disabled until checkbox ticked; booking-fee-note stays visible in summary panel across all steps.",
+    "Also ensure success flow: complete payment → verify booking doc has is_outstation=true (confirmed working via backend test)."
+  ],
+  "critical_code_review_comments": [
+    "BookingFlow.jsx: `artist.city` should be `artist.profile?.city` (5 places). Same file already uses `artist.profile.stage_name` / `artist.profile.city` correctly elsewhere (lines 629, 636, 672, 676) — so this is a clear oversight introduced with the Iter 32 diff.",
+    "iter7_routes.py:307 — public settings query uses `{key: {$in: list(PUBLIC_SETTING_KEYS)}}` which is correct; whitelist is enforced. Consider adding server-side unit test to guard against future accidental exposure.",
+    "server.py:1497 _create_contract: reads outstation_clause & booking_fee_note synchronously from db per contract — fine at current volume. Consider caching if contracts become high-throughput.",
+    "server.py:1290 outstation detection is case-insensitive using .strip().lower() — good. Note there is no aliasing (e.g. 'Delhi' vs 'Delhi NCR' will trip outstation). Consider integrating city_aliases from iter18 when comparing."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter32_outstation.py"
+  ],
+  "success_rate": {"backend": "100% (9/9)", "frontend": "40% — booking-fee-note works; outstation-notice/ack gate fully broken"},
+  "test_credentials": "Admin: admin@booktalent.com / Admin@123; Customer: customer@booktalent.com / Customer@123; Artist Priya (Mumbai): priya@booktalent.com / Artist@123; Payment OTP: 123456",
+  "seed_data_creation": "None — reused seeded users. Test data prefixed 'TEST_' in booking notes. Uses randomized future dates (200+ days out) to avoid double-booking conflicts.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend outstation flow is solid. Focus retest on frontend after main agent flips `artist.city` → `artist.profile?.city`. Use test_iter32_outstation.py as regression. Priya's user_id: 22c3967c-e432-41e8-bdfb-a0a54b82ee1b, city Mumbai. Set event city='Delhi' to trigger outstation. /api/artists/{id} shape: {profile, user, packages, media, reviews, availability}.",
+  "rca of the issue": {
+    "bug": "Outstation notice/ack gate never renders in BookingFlow.",
+    "root_cause": "Property path mismatch: the /api/artists/{id} response nests city under `profile`, but the new outstation JSX reads `artist.city` (undefined). The truthy check `artist?.city` then falls through to false, so all 3 outstation UI blocks are hidden regardless of city mismatch.",
+    "reproduction": "1) Login as customer@booktalent.com 2) Open /book/22c3967c-e432-41e8-bdfb-a0a54b82ee1b 3) Advance to Step 3, set city='Delhi', venue='The Leela Palace', name='Test' 4) Observe: no outstation-notice appears 5) Continue to Step 4 6) Observe: no review-outstation-notice, no outstation-ack; step4-next remains enabled (except when travel_ack required).",
+    "mitigation": "Change all `artist.city` / `artist?.city` references in /app/frontend/src/pages/BookingFlow.jsx (lines 406, 421, 533, 545, 562) to `artist.profile?.city` / `artist?.profile?.city`."
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "summary": "Iter8 backend+frontend validation. Backend: 22/22 NEW iter8 tests pass + 22/22 iter7 (1 skip, known date-collision, same as last run) + 18/18 iter6 regression = 62 passed / 1 skipped on full sweep. NEW coverage: KYC validation (bad aadhaar/PAN/filetype/oversize all rejected), KYC admin queue filters (pending/approved/rejected/needs_resubmission/empty), KYC admin decide cycle (approve→request_resubmission→reject for alt artist vortex), Coupon strict validation (unknown code, below min_order, happy path TEST20 5000→1000 discount), Coupon admin analytics + ledger drilldown + 403 for non-admin, Chat REST (post/list/read, customer+artist+admin access, stranger 403, offline-notify creates in-app notif). Frontend: iter7 Coupons crash is FIXED — sidebar walk through all 11 previously-blocked tabs (users/disputes/master/boost/templates/faqs/cms/broadcast/reports/settings/audit) renders without crash; Coupons tab shows 4 KPI cards (Total Redemptions / Discount / GMV / 13 Active Coupons), TEST20 visible 20% 0/10 active with Ledger+Delete actions, +New Coupon button. KYC tab loads with status filter <select> and empty queue placeholder. Customer dashboard /customer renders 6 bookings; each row has 💬 Chat button which opens modal with prior iter8 chat messages persisted (gold self-bubbles, ✓ read receipts, time stamps, 'Type a message…' + Send). Search /search shows 15 artists with FEATURED pills, rotating-gallery progress dots (Priya & DJ Vortex), emoji fallback for cards with no media (Rohit/Aamir), real photos for cards with media (Dhiren).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/coupons/validate", "issue": "Requires Authorization header (401 without) but task spec described it as public lookup; current behaviour rejects anonymous callers with 401 instead of 200+{valid:false}. Consider allowing anonymous validation OR document as authenticated."},
+      {"endpoint": "/api/chat/{bid}/messages POST", "issue": "Returns full message dict; mongo `_id` correctly excluded (verified). No issues found, just noting."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Landing / Search", "issues": ["Console warning persists: 'Encountered two children with the same key' — non-blocking, surfaces on Landing + Search. Same low-priority finding as iter6/iter7; likely a .map using non-unique id (e.g., featured grid + saved search chips). Investigate Landing featured grid keys."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter8.py",
+    "/app/test_reports/pytest/iter8_results.xml",
+    "/app/test_reports/pytest/full_iter8.xml"
+  ],
+  "action_items": [
+    "[Low] /api/coupons/validate currently requires auth — confirm intent (allow anonymous OR keep auth + update docs/frontend).",
+    "[Low] Fix duplicate-key React warning surfaced on Landing & Search (carry-over from iter6/iter7).",
+    "[Info] booking_accept notify test in iter7 still SKIPPED on full run due to priya calendar collision from prior accepted booking — does not affect iter8 outcomes; consider seeding a fresh artist or clearing priya's calendar in CI."
+  ],
+  "critical_code_review_comments": [
+    "/app/backend/chat_routes.py is clean (225 lines), properly handles _id exclusion via clean(), uses JWT_SECRET from env, validates booking participant, and rejects strangers with 403. ConnectionManager is in-process only — fine for single-pod but won't scale to multi-replica; document or move to Redis pubsub in a future iteration.",
+    "server.py is now ~2400+ lines and still monolithic — split into routers (kyc/, coupons/, bookings/) remains a strong recommendation as flagged in iter6/iter7.",
+    "Coupon validate route should clearly return `{valid:false, reason:'...'}` for all invalid cases instead of mixing 401/400 — current 401 for anonymous is correct behaviour if the route is intentionally authenticated, but inconsistent with task spec.",
+    "Frontend AdminDashboard.jsx Coupons crash fix (useEffect wrapping) verified working — recommend a one-time grep sweep for any other `useEffect(named_fn_returning_promise, [])` patterns as preventive measure."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter8.py (NEW — 22 tests, all pass)"
+  ],
+  "success_rate": {
+    "backend": "100% (22/22 NEW iter8 pass; 62/63 full sweep — 1 skip is known iter7 calendar-collision unrelated to iter8)",
+    "frontend": "100% on iter8 surfaces tested (Search rotating thumbnails visible, Customer Chat modal opens + persists messages, Admin Coupons KPI+table renders, Admin KYC queue with filter renders, all 17 admin tabs reachable — iter7 crash blocker resolved)"
+  },
+  "test_credentials": "Admin admin@booktalent.com/Admin@123, Customer customer@booktalent.com/Customer@123, Artist priya@booktalent.com/Artist@123, Alt artist vortex@booktalent.com/Artist@123 — all verified working.",
+  "seed_data_creation": "Tests create a fresh booking (iter8 chat venue, Mumbai, 2026-08-24) for chat REST tests, two chat messages ('hello from customer iter8', 'offline notify ping iter8') persisted in db.chat_messages, in-app notifications created in db.notifications for priya, and vortex KYC submitted+approved+request_resubmission+rejected for cycle test. priya's KYC status was NOT reset (her existing approved state preserved). All ephemeral.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iter8 is fully green on both ends. The chat WebSocket REST + persistence + cross-party offline notification path is verified. The KYC validation regexes + admin decision audit + status pill flow is verified. The coupon validate→redeem→ledger→analytics chain is verified. Only carry-over low-priority items: (1) the React duplicate-key warning, (2) /api/coupons/validate requiring auth — both decisions for product/dev. The iter7 'Coupons crash blocker' is confirmed FIXED and all 17 admin sidebar tabs render cleanly. WebSocket endpoint /api/ws/chat/{bid}?token=<jwt> was not re-tested in this iteration because main agent confirmed end-to-end via wss:// in their handoff note; REST surface fully tested instead. Test credentials & data-testids unchanged from iter7. Rerun: `cd /app && python -m pytest backend/tests/test_iter8.py -v --tb=short`.",
+  "rca of the issue": "No bugs blocking iter8 features. Two minor observations: (a) coupon validate requires auth — change to anonymous if product wants public lookup, otherwise keep and document; (b) duplicate-key warning is a non-blocking React render artifact on Landing/Search — needs a grep through .map() calls for non-unique keys."
+}

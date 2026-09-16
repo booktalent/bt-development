@@ -1,0 +1,36 @@
+{
+  "summary": "Iter 83 — Feb-2026 Batch 2 (5 items) validated. Backend: 5/5 pytest cases PASS in /app/backend/tests/test_req_batch_2.py — (1) GET /api/agency/overview returns advance_received, remaining_amount, artist_payout_pending as numeric floats; (2) POST /api/admin/seed/service-artist idempotent (existed:true on second call) and GET /api/finance/quote?artist_id=<sid>&package_fee=100000 → is_service_artist:true, platform_fee_waiver=-5000, platform_fee_net=0, waiver_message set, booktalent_commission=10000, artist_payable=90000; (3) manager POST/GET/DELETE /api/manager/booking-presets full CRUD + list correctness; (4) mutual refund flow — customer POST /refund-request (₹15,000) → status=pending_counter_ack → priya POST /refund-accept → ok:true amount=15000 → status=accepted; (5) GET /api/bookings/{bid}/timeline returns items[] containing refund_requested + refund_accepted, all rows have kind/label/at. Frontend: agency KPI strip renders all 3 data-testids (agency-kpi-advance ₹0, agency-kpi-remaining ₹4,59,522, agency-kpi-payout ₹0). Booking detail /bookings/914f366d-b1f9-41a9-88d8-65ffe394b033 renders data-testid='bd-refund-panel' with bd-refund-amount + bd-refund-reason + bd-refund-request form fields plus a visible '✅ Refund of ₹15,000 accepted' banner. Manager preset UI could not be exercised via automation because the step-2 artist search ('/api/search') returned 0 artist cards for queries Priya/Aarav/Live/vocal (search flaky/eventual). Source inspection of ManagerCRM.jsx confirms data-testid='mgr-preset-name', 'mgr-preset-save', and 'mgr-preset-list' are correctly wired at step===3 (lines 519/578/584).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Manager · Create Booking on Behalf · step 2 (Pick Artist)", "issue": "Artist search input calls /api/search?q=… but returns 0 results for common queries (Priya, Aarav, Live, vocal, mumbai). Manager cannot proceed to step 3 to load/save a preset unless a match happens to appear. Not a preset-feature bug per se, but blocks the UX and blocks end-to-end automated testing of the preset UI.", "affected_selectors": ["mgr-book-artist-search", "mgr-book-artist-*"]}
+    ],
+    "design_issues": [
+      {"screen": "Agency Dashboard KPI strip", "issues": ["'agency-kpi-remaining' tile displays label 'REMAINING ₹' – the trailing ₹ after the label looks like a stray character; consider 'REMAINING' or 'REMAINING (₹)'."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_req_batch_2.py",
+    "/app/test_reports/pytest/iter83_batch2.xml"
+  ],
+  "action_items": [
+    "Investigate ManagerCRM step-2 artist search — /api/search q=Priya|Aarav returns 0 items in this env, which blocks the preset flow. Either broaden the query (name/stage_name/city) or seed a discoverable artist. Presets themselves work backend-side.",
+    "(Minor) Fix 'REMAINING ₹' label copy on agency dashboard KPI tile."
+  ],
+  "critical_code_review_comments": [
+    "req_batch_2.refund_request/refund_accept don't lock refund_requests by booking_id — a race between two customers/artists submitting simultaneously could create two 'pending_counter_ack' rows. Add a unique index on (booking_id, status='pending_counter_ack') via partial index or find_one_and_update with upsert.",
+    "req_batch_2.emit_booking_event() swallows all exceptions with log.warning only. For refund events consider raising or emitting an alert since the timeline is now a compliance artifact.",
+    "req_batch_2.seed_service_artist writes bcrypt via `from server import _hash_password` inside the handler — brittle circular import; move helper to a shared auth util.",
+    "req_batch_2.booking_timeline builds a `seen` dedupe from (kind, at) but history uses `action` not `kind`, so no dedup actually happens — every booking with history array will show duplicated rows if events also mirror those actions.",
+    "req_batch_2._booking_for_party permits admin/subadmin bypass but /refund-request itself rejects role∉('customer','artist'); good. However /refund-accept does not check user.id against counter_id when role is admin — an admin cannot accept on behalf (by design?), worth documenting."
+  ],
+  "updated_files": ["/app/backend/tests/test_req_batch_2.py"],
+  "success_rate": {"backend": "100% (5/5)", "frontend": "83% (2/3 verified end-to-end; manager preset UI verified via source only)"},
+  "test_credentials": "admin@booktalent.com/Admin@123, test-mgr@booktalent.com/Manager@123, agency@booktalent.com/Agency@123, customer@booktalent.com/Customer@123, priya@booktalent.com/Artist@123, service-artist@booktalent.com/Service@123",
+  "seed_data_creation": "Reused/patched booking id 914f366d-b1f9-41a9-88d8-65ffe394b033 (set paid_amount=50000, customer_id=logged-in customer, artist_id=priya.user_id). Seeded service-artist via /api/admin/seed/service-artist. Created + deleted one TEST_preset_* preset via manager. One refund_request row exists on that booking with status=accepted (₹15,000) plus 2 booking_events (refund_requested, refund_accepted).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "test_req_batch_2.py is the canonical regression for the Batch 2 items. It self-heals refund test data by patching booking 914f366d-b1f9-41a9-88d8-65ffe394b033 to (paid=50000, customer=logged-in customer, artist=priya) and wiping any pre-existing refund_requests + refund_* booking_events. To exercise the manager-preset UI flow end-to-end, ensure /api/search returns an artist card for the manager's search terms — otherwise the create-booking modal is stuck on step 2 and step-3 preset UI (data-testids mgr-preset-name/save/list) is unreachable.",
+  "rca of the issue": "N/A — no defect. Only a UX/testability gap: manager step-2 artist search returned 0 hits for standard queries, so the preset UI on step-3 (which is correctly implemented per code inspection) could not be reached via headless automation."
+}

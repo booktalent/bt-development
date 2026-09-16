@@ -1,0 +1,45 @@
+{
+  "summary": "Sprint 3 (Artist Add-ons frontend) + Sprint 4 (Travel & Accommodation) end-to-end verified. Backend Sprint 4: 6/6 pytest cases PASS (new /app/backend/tests/test_iter27_travel.py). Frontend E2E via Playwright: Add-ons CRUD (create/edit/toggle/delete) in Artist Dashboard works; Package Modal exposes all Sprint 4 travel fields (pkg-travel-required, pkg-accommodation-required, pkg-flight-class, pkg-hotel-category, pkg-team-size, pkg-arrival-buffer, pkg-local-transport, pkg-meals, pkg-travel-notes, pkg-save) and PUT /api/packages/{pid} returns 200 with full round-trip persistence. Customer BookingFlow step 1 shows '🎁 Artist Add-ons' with mandatory pre-selected + non-deselectable (guarded by toggleArtistAddon → returns early if is_mandatory), optional toggle + qty +/- controls work, summary-artist-addons line updates live (₹27,140 for 1×mandatory+2×optional). Step 4 renders review-travel-block with all fields, step4-next disabled until travel-ack-checkbox checked → enables after. Final booking POST /api/bookings → 200 (ref BT-260717-4F6A8C) captured addon_snapshots (2 with correct subtotal/gst_amount/total) + full travel_requirements object matching package (business flight, 5-star hotel, team=4, buffer=1 day, transport+meals=True, notes='Vegetarian meals only'). Pricing: artist_fee=52140, platform_fee=2607 (5%), gst=469.26 (18% of platform), total=3076.26. Travel does NOT bleed into total — business rule maintained.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Artist Dashboard → Packages tab", "issues": ["Duplicate TEST_PKG entries appear (7 total from stale prior-iter test data) — not a code bug but consider adding an admin cleanup for TEST_ prefix packages"]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter27_travel.py",
+    "/app/backend/tests/test_iter26_addons.py",
+    "/app/test_reports/pytest/iter27.xml"
+  ],
+  "action_items": [
+    "OPTIONAL — Frontend Math.round(platformFee*0.18)=469 vs Backend round(platform*0.18, 2)=469.26 gives 27 paise mismatch on display vs stored value. Not user-visible (frontend displays ₹469, receipt/invoice shows ₹3,076). Consider aligning by using Math.round in backend too for perfect parity if invoices ever expose the paise-level gst separately.",
+    "OPTIONAL — MAYBE seed cleanup: /app/backend/tests/test_iter26_addons.py has stateful mandatory-addon side effects (test creates PW_Sound_Setup as mandatory and TEST_Sound_System is created too). Running the iter26 pytest twice back-to-back leaves 2 mandatory add-ons on Priya causing later booking flows to fail with 'Mandatory add-on X must be selected' unless the customer picks the newer one. Suggest adding a module-scope teardown to test_iter26_addons.py that deletes all TEST_ addons for Priya at fixture teardown.",
+    "OPTIONAL — Console warning: React hydration warning '<span> option' — non-blocking but investigate select option child structure."
+  ],
+  "critical_code_review_comments": [
+    "server.py L1207-1216: travel_requirements captured with `bool()` casts on primitives and pkg.get(...) on strings/ints — good; snapshot pattern is correct (same immutability approach as addon_snapshots).",
+    "server.py L233-249 PackageBody: Optional[str] for hotel_category/flight_class permits any string. Consider tightening to Literal[...] for enum-safe API (matches frontend dropdown values: economy/premium-economy/business/first, 3-star/4-star/5-star/luxury).",
+    "BookingFlow.jsx L92: `if (a.is_mandatory) return;` — correct short-circuit; UI also sets cursor='default' on mandatory cards. Good UX.",
+    "BookingFlow.jsx L470: `disabled={pkg && (pkg.travel_required || pkg.accommodation_required || pkg.local_transport_required || pkg.meals_required || pkg.travel_notes) && !form.travel_ack}` — long OR chain; consider extracting to `hasTravelRider(pkg)` helper for readability.",
+    "ArtistDashboard.jsx L537: Conditional rendering of flight_class/hotel_category/team_size/arrival_buffer only when travel_required OR accommodation_required is checked. If artist unchecks both after setting values, the values remain in state and get saved on next Save click — verified via test: values persist correctly when saved but hidden from UI until re-enabled. Fine but non-obvious.",
+    "BookingFlow.jsx L124-127: `Math.round(artistFee * 0.05)` and `Math.round(platformFee * 0.18)` — 0-decimal rounding; backend uses `round(x, 2)`. See action item #1."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter27_travel.py — NEW: 6 pytest cases (Sprint 4)"
+  ],
+  "success_rate": {
+    "backend": "100% (6/6 iter27 Sprint 4 tests)",
+    "frontend": "100% (Sprint 3 CRUD + Sprint 3.5 booking integration + Sprint 4 package modal + Sprint 4 booking review + full E2E booking to confirmed page)"
+  },
+  "test_credentials": "priya@booktalent.com/Artist@123 (artist), customer@booktalent.com/Customer@123 (customer). Both logged in successfully throughout.",
+  "seed_data_creation": "Persisted on Priya (id=22c3967c-e432-41e8-bdfb-a0a54b82ee1b): 2 addons (PW_Sound_Setup mandatory 5000/18%GST/qty1 id=57763fe1-39b1-4ed2-b9e8-83ecc5fbfe52; PW_Extra_Hour optional 9000/18%GST/qty3 id=e473f957-79d5-4e2d-b4c3-76d7d6357f7b). Test package d0f4c3c1-875e-408e-9668-d92a1e5fe06e (TEST_PKG @25000) mutated with travel_required=true, flight=business, hotel=5-star, team=4, buffer=1, transport+meals=true, notes='Vegetarian meals only'. iter27 pytest also creates its own TEST_Sprint4_Pkg + TEST_NoTravel_Pkg (cleaned up in fixtures). Test booking BT-260717-4F6A8C created via UI flow — persistent in DB with full addon_snapshots + travel_requirements.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Sprint 3 (Add-ons) frontend + Sprint 4 (Travel & Accommodation) both fully verified. Priya's live add-on state: 1 mandatory PW_Sound_Setup (id 57763fe1-39b1-4ed2-b9e8-83ecc5fbfe52) + 1 optional PW_Extra_Hour (id e473f957-79d5-4e2d-b4c3-76d7d6357f7b). To reset: mongosh booktalent --eval 'db.artist_addons.deleteMany({artist_id:\"22c3967c-e432-41e8-bdfb-a0a54b82ee1b\"})'. Booking id f8a39b6c-67a5-44bb-8b58-b34837b84e31 (ref BT-260717-4F6A8C) has full sprint 3+4 snapshot data for regression queries. iter26 pytest module has stateful cleanup bug — see action items. All frontend testids match spec. Business math (5% + 18% GST, travel excluded) verified on both backend response and frontend display.",
+  "rca_of_the_issue": "N/A — no bugs found this iteration. Sprint 3 frontend + Sprint 4 module both work as specified end-to-end."
+}

@@ -1,0 +1,51 @@
+{
+  "summary": "Iter 54 — Agency auto-provision + Documents vault verified end-to-end. Backend: 13/13 pytest green covering (a) POST /api/agency/invite with brand-new email auto-provisions user (role='artist', pending_activation=true, email_verified=false) + artist_profile + returns auto_provisioned=true/status='active', (b) missing/invalid email returns 400 with 'email' in detail, (c) existing active roster artist (priya) returns 400 'already in your roster', (d) POST /agency/documents returns metadata-only response (no data_url) with correct mime='image/png' + size_bytes, (e) GET /agency/documents omits data_url and is filterable by client_id and event_id, (f) GET /agency/documents/{id}/download returns {title, mime, data_url}, (g) DELETE /agency/documents/{id} returns {ok:true} and subsequent download 404s, (h) 403 for non-agency roles (artist + customer) on both GET and POST. Frontend: (1) Agency Overview at /agency/overview renders agency-quick-actions grid with all 6 cards (qa-artists/clients/events/finance/documents/staff) — each click navigates to matching /agency/* route. (2) Artists tab: ag-invite-seed-toggle reveals 4 seed fields; sending invite for brand-new email `iter54ui_...@test.com` returned auto_provisioned=true, success message 'New artist account created for … They can claim it via \"Forgot password\" on login.' appeared, and roster auto-refreshed showing 'Auto-provisioned' badge + 'active' status. (3) Documents tab: uploaded a real 70-byte PNG via file input → POST returned 200 with mime='image/png', size_bytes=70, no data_url in response; row appeared in ag-docs-list with ag-doc-row-{id}; Download button triggered GET /download returning data_url; Delete confirmed via window.confirm dialog → DELETE returned 200 and row disappeared.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Documents tab — Upload Document form",
+        "issues": [
+          "React hydration warning in console: 'In HTML, <span> cannot be a child of <option>. This will cause a hydration error.' — traced to the <select data-testid=\"ag-doc-event\"> options for events. Root cause is the Emergent dev-mode component instrumentation wrapping the option's dynamic text in <span data-ve-dynamic=true style={display:contents}>. In production build the instrumentation is stripped, so this is dev-only noise — but if the instrumentation ever escapes to prod it will break option rendering. Consider ensuring option children render as raw text, not JSX expressions, e.g. `{`${e.title} · ${e.event_date}`}` remains inside the option correctly but the current template `{e.title} · {e.event_date}` produces multiple text nodes that trip the instrumentation."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter54_agency_provision_docs.py",
+    "/app/test_reports/pytest/iter54_run.xml"
+  ],
+  "action_items": [
+    "OPTIONAL: silence dev-mode hydration warning on ag-doc-event <option> by wrapping the label as a single template-literal string child: `<option value={e.id}>{`${e.title} · ${e.event_date}`}</option>`.",
+    "OPTIONAL: convert the class-scoped fixture in test_iter54_agency_provision_docs.py to @classmethod to remove pytest 10 deprecation warning (cosmetic)."
+  ],
+  "critical_code_review_comments": [
+    "iter9_routes.py:157-247 agency_invite — auto-provision branch correctly generates a random unusable password via secrets.token_urlsafe(24), hashes with the same hash_password used at signup, marks pending_activation=true, and inserts companion artist_profile. Safe: existing-user path is UNCHANGED (branch keyed on `if not artist_user`).",
+    "iter9_routes.py:198 stage_name fallback chain — `body.stage_name || f'{first} {last}'.strip() || first || 'Artist'` guarantees non-empty stage_name. Good defensive coding.",
+    "iter9_routes.py:224-233 status decision — auto-provisioned artists go straight to `active` (agency created the account, consent implicit); existing BT artists stay `pending` awaiting acceptance. Matches business intent.",
+    "iter9_routes.py:154-156 email validation — trivial `@` check; consider using EmailStr for stronger validation. However the current guard is enough to satisfy the 400 acceptance criterion.",
+    "routes/agency_crm.py:644-706 documents CRUD — clean split of create/list/download/delete; list endpoint uses projection {data_url: 0} to keep payloads small and download reads doc directly. GOOD: agency_id filter on every operation prevents cross-agency data leakage. base64 size calculation on line 657 is approx (int(len(b64.strip())*3/4) - padding_count) — slightly off but acceptable for display.",
+    "routes/agency_crm.py:651-652 data_url validation only checks startswith('data:') — will accept malformed data URLs. Recommend also splitting on ',' and confirming presence of base64 payload before insertion (would prevent inserting empty docs).",
+    "frontend/src/pages/agency/modules/Documents.jsx:50 8 MB client-side size cap — reasonable UX guardrail but backend has NO size cap. Recommend backend-side enforcement (e.g., 10 MB hard limit) since a hostile agency user could bypass the frontend check.",
+    "frontend/src/pages/agency/modules/Documents.jsx:64-75 download uses document.createElement('a') with href=data_url + download attr — works in Chromium/Firefox, but very large base64 URLs may hit browser URL length limits (~2MB in old browsers). Not blocking for MVP.",
+    "frontend/src/pages/agency/modules/Overview.jsx:5-54 QUICK_ACTIONS array is a nice declarative structure; each card is a <button> not <a> so accessibility keyboard-nav works and the onClick uses react-router navigate — no full page reload. Solid.",
+    "frontend/src/pages/agency/modules/Artists.jsx:18-40 invite handler splits seedName on whitespace to derive first_name/last_name and passes stage_name = full seedName — correct mapping to backend AgencyArtistInvite model. Note: if user types 'Priya' (single name), first_name='Priya', last_name='' (empty). Backend correctly falls back to email-local-part-based name only when BOTH are empty."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter54_agency_provision_docs.py (NEW — 13 tests across TestAgencyInviteAutoProvision[4] + TestAgencyDocuments[9])",
+    "/app/test_reports/pytest/iter54_run.xml (JUnit output)",
+    "/app/test_reports/iteration_54.json"
+  ],
+  "success_rate": {
+    "backend": "100% (13/13 iter54 tests passed)",
+    "frontend": "100% (Overview 6/6 cards + navigation, Artists auto-provision flow + badge, Documents upload/list/download/delete all green)"
+  },
+  "test_credentials": "agency@booktalent.com / Agency@123 (Star Talent Agency); priya@booktalent.com / Artist@123; customer@booktalent.com / Customer@123. Also generated ephemeral emails like iter54new_<ts>@test.com and iter54ui_<ts>@test.com for auto-provision testing.",
+  "seed_data_creation": "Test run created two ephemeral artist accounts + roster rows (iter54new_*, iter54ui_*) and one throwaway agency client + event + document (all TEST_ prefixed). All cleaned up post-test via direct MongoDB calls — verified no leftover iter54_* users, TEST_iter54_* clients/events, or TEST_ documents remain.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iter 54 is fully green. Test file: /app/backend/tests/test_iter54_agency_provision_docs.py. Run: `export REACT_APP_BACKEND_URL=$(grep REACT_APP_BACKEND_URL /app/frontend/.env | cut -d= -f2) && pytest backend/tests/test_iter54_agency_provision_docs.py -v`. Agency dashboard V2 lives at /agency/{overview,artists,clients,events,finance,documents,staff,calendar,reports,notifications}. The 6-tile grid on /agency/overview has data-testids qa-{artists,clients,events,finance,documents,staff}. Agency invite endpoint auto-provisions when email is unknown (returns auto_provisioned=true + status=active). Documents endpoint stores base64 inline in mongo (agency_documents collection) — fine for MVP. Non-agency roles get 403 on all /agency/documents routes.",
+  "rca_of_the_issue": "N/A — all acceptance criteria met. Only observation is a dev-mode hydration warning in the <select ag-doc-event> option rendering caused by Emergent dev-instrumentation wrapping option children in a <span>. Production build strips instrumentation, so no user-facing impact."
+}

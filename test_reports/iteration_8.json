@@ -1,0 +1,47 @@
+{
+  "summary": "Iter9 backend+frontend validation. Backend: 28/28 NEW iter9 pytest tests pass (Providers ×6, Agency ×10, Corporate ×4, Reviews+Moderation ×3, Chat upload ×5) + iter8 regression 22/22 pass. NEW coverage: provider /admin/providers/status returns all 6 providers with live:bool + env_keys; provider test endpoints (sms/whatsapp/push) return {status:'mocked',reason:'no_keys'} as expected; agency invite duplicate-pending rejected (400), unknown artist (404), non-artist email rejected (400); agency endpoints 403 for non-agency; agency stats has roster/pending_invites/bookings/gmv/commission_earned; corporate bulk-bookings handles partial failure (1 created, 1 package_not_found error), is_corporate_bulk flag persisted, cost_centre rolled up in /corporate/stats; review with photo auto-routes to 'pending' status visible in /admin/reviews?status=pending and approval moves it to 'approved' list; chat upload handles file (15MB cap), voice (5MB cap, oversize 6MB → 400), video-request (no media), non-participant 403. Frontend: /agency renders Star Talent Agency overview with 5 KPI cards (0 Active / 1 Pending Invites / 0 Bookings / ₹0 GMV / ₹0 Commission) + sidebar (Overview/Roster/Bookings/Invite Artist/Logout). /corporate renders Acme Corp overview with 3 KPIs (₹30,750 Total Spend / 1 Total Bookings / 1 Cost Centres) + sidebar (Overview/Bulk Booking/All Bookings/Cost Centres/Logout). Admin sidebar count = 19 (confirmed) — clicking 'Reviews Moderation' renders empty-state with status select (Pending/Approved/Rejected/All); clicking 'Providers' renders Integrations table with all 6 providers (Email Resend, SMS Twilio, WhatsApp Gupshup/Meta, Push FCM, Razorpay, Stripe) all showing 'Mock (no key)' badges with required env keys listed, plus Send Test form (SMS/WhatsApp/Push selector + To + message + Send Test btn). ChatBox toolbar has data-testid chat-attach 📎, chat-voice 🎤, chat-video 📹, chat-file-input — verified in source. 0 console errors on /admin during tab switches.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/agency/remove/{artist_id}", "issue": "Returns {ok:true} even for non-existent artist (no roster row matched). Idempotent by design but consider returning 404 when no doc was modified."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "AdminDashboard — Reviews Moderation & Providers tabs", "issues": ["These two new admin tabs render their content APPENDED BELOW the Platform Overview KPI grid, instead of replacing it like the other admin tabs (Coupons/KYC). Inconsistent layout — clicking 'Providers' should show ONLY the providers table, not Overview + Providers. Recommend changing AdminEnterprise.jsx to render conditionally based on `tab` and replace content."]},
+      {"screen": "Agency dashboard cards", "issues": ["KPI numbers ('0', '1', '₹0') render in a light/script-style font that looks like lowercase serif glyphs (e.g., '0' becomes 'O'). May be the global heading font cascading into number tiles. Confirm typography intent."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter9.py",
+    "/app/test_reports/pytest/iter9_results.xml"
+  ],
+  "action_items": [
+    "[Low] Make admin Reviews Moderation + Providers tabs replace the Overview content (consistent with Coupons/KYC tabs).",
+    "[Low] /api/agency/remove/{artist_id} should 404 when no roster row matched (currently returns ok:true silently).",
+    "[Info] ChatBox voice MediaRecorder + ReviewModal photo/video file inputs not exercised end-to-end in browser (Playwright headless mic permission limitation + needs a fresh reviewable booking). Backend pipeline fully covered."
+  ],
+  "critical_code_review_comments": [
+    "/app/backend/iter9_routes.py (450 lines) is cleanly organised — agency / corporate / chat / providers grouped with section banners, Pydantic at module level, ObjectId stripped via clean(). Good provider auto-detection pattern (`has(*keys)` + lazy imports inside helpers). Twilio/Gupshup/FCM secrets read fresh per call so .env changes apply without restart.",
+    "Auto-moderation in /reviews POST is reasonable (text-only auto-approved, media → pending). Rebuilds aggregate twice (on POST and on moderate). For high-volume systems this may need a single recompute job, but fine for current scale.",
+    "agency_invite has DOUBLE check for existing active + pending which is good; consider adding a fresh re-invite path when status='declined' or 'removed' (currently a re-invite to a declined artist will insert a new row — that's probably fine but worth documenting).",
+    "/corporate/bulk-bookings does not validate event_date format (YYYY-MM-DD) — relies on string equality with availability. Consider Pydantic field validator.",
+    "server.py is now ~2800 lines — split into routers (kyc/, coupons/, bookings/, reviews/) remains a strong recommendation as flagged in prior iterations.",
+    "Provider test endpoints accept arbitrary `to` strings; for SMS/WhatsApp consider E.164 regex validation to avoid Twilio 21211 errors when live keys are added."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter9.py (NEW — 28 tests, all pass)"
+  ],
+  "success_rate": {
+    "backend": "100% (28/28 iter9 NEW + 22/22 iter8 regression)",
+    "frontend": "100% on iter9 surfaces tested (Agency dashboard renders + sidebar, Corporate dashboard renders + sidebar, Admin sidebar count=19, Reviews Moderation tab + Providers tab load data, ChatBox toolbar data-testids verified in source). 0 console errors on admin nav."
+  },
+  "test_credentials": "Admin admin@booktalent.com/Admin@123, Customer customer@booktalent.com/Customer@123, Artist priya@booktalent.com/Artist@123, Alt vortex@booktalent.com/Artist@123, Agency agency@booktalent.com/Agency@123 (Star Talent Agency), Corporate corporate@booktalent.com/Corporate@123 (Acme Corp). All verified.",
+  "seed_data_creation": "Tests CREATED: (1) 1 corporate bulk booking (Acme Corp → priya, future date +120d, cost_centre=ENG-CC1, PO-ITER9-001) — visible in /corporate/stats now showing ₹30,750 spend. (2) 1 review with photo for a customer's completed booking (auto-routed to pending → approved by admin in same test). (3) Several chat messages (file pdf, voice 1KB webm, video-request note) on customer's first booking. priya's pending invite from Star Talent was NOT consumed (kept for next test agent).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iter9 is fully green. Backend 28/28 new + 22/22 iter8 regression. Two carry-over LOW-priority items: (a) admin Reviews-Mod + Providers tabs render BELOW overview instead of replacing it — UX polish for AdminEnterprise.jsx, (b) /api/agency/remove returns ok:true even on non-existent artist (cosmetic). ChatBox voice recording (MediaRecorder) requires real mic permission so was not click-tested in headless browser — backend voice upload + cap is fully covered. ReviewModal photo/video file inputs render but were not e2e-tested in browser (no fresh reviewable booking remaining in the seed); backend pipeline is covered. Rerun: `cd /app && python -m pytest backend/tests/test_iter9.py -v --tb=short`. Test data left in db: 1 corporate bulk booking + 1 approved review with photo + 3 chat messages on customer's first booking. Star Talent → Priya invite still pending (not consumed).",
+  "rca of the issue": "No bugs blocking iter9 features. All 7 backend feature surfaces + 3 frontend dashboards verified. Minor UX inconsistency on admin where two new tabs append-render instead of replace-render — easy fix in AdminEnterprise.jsx by conditional return based on the `tab` state."
+}

@@ -1,0 +1,20 @@
+# BookTalent — cron jobs
+# --------------------------------------------------------------------
+# Install:  sudo cp deploy/cron/booktalent.cron /etc/cron.d/booktalent
+#           sudo chmod 644 /etc/cron.d/booktalent
+# --------------------------------------------------------------------
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+MAILTO=ops@booktalent.example.com
+
+# ─── Daily MongoDB backup at 03:15 IST (21:45 UTC) ───────────────────
+45 21 * * *   root  /opt/booktalent/deploy/scripts/backup_mongo.sh >> /var/log/booktalent/backup.log 2>&1
+
+# ─── Weekly SSL renewal check (Certbot handles the actual renewal) ───
+15 3 * * 1    root  certbot renew --quiet --deploy-hook "systemctl reload nginx"
+
+# ─── Log rotation nudge (in case logrotate misses it) ────────────────
+0 0 * * 0     root  /usr/sbin/logrotate /etc/logrotate.d/booktalent
+
+# ─── OPTIONAL: monthly GST report to accounting (uncomment when ready)
+# 0 6 1 * *   booktalent  cd /opt/booktalent/backend && ./.venv/bin/python -m scripts.gst_report --email accounts@booktalent.example.com

@@ -1,0 +1,36 @@
+/* Iter 65 — Notification click auto-scroll + gold pulse.
+ * A row that receives the `.row-flash-gold` class gets a soft golden glow
+ * that fades out over ~2.4s, drawing the operator's eye directly to the
+ * booking/payment/refund they clicked in the notification bell. */
+
+@keyframes bt-row-flash-gold {
+  0%   { box-shadow: 0 0 0 0 rgba(212, 175, 55, 0.0); background-color: rgba(212, 175, 55, 0.00); }
+  15%  { box-shadow: 0 0 0 6px rgba(212, 175, 55, 0.35); background-color: rgba(212, 175, 55, 0.25); }
+  50%  { box-shadow: 0 0 0 4px rgba(212, 175, 55, 0.22); background-color: rgba(212, 175, 55, 0.14); }
+  100% { box-shadow: 0 0 0 0  rgba(212, 175, 55, 0.0);   background-color: rgba(212, 175, 55, 0.00); }
+}
+
+.row-flash-gold {
+  animation: bt-row-flash-gold 2.2s ease-out 1;
+  animation-fill-mode: both;
+  /* Rounded corners look better on <tr> that are otherwise flat. */
+  border-radius: 8px;
+  /* Prevent layout shifts during outline expansion. */
+  will-change: box-shadow, background-color;
+  position: relative;
+  z-index: 2;
+}
+
+/* Slightly stronger tone on dark surfaces so the flash reads on both
+ * light table backgrounds AND the dark agency drawer / admin dashboards. */
+[data-theme="dark"] .row-flash-gold,
+.dark .row-flash-gold {
+  animation-name: bt-row-flash-gold-dark;
+}
+
+@keyframes bt-row-flash-gold-dark {
+  0%   { box-shadow: 0 0 0 0 rgba(255, 210, 100, 0.0); background-color: rgba(255, 210, 100, 0.00); }
+  15%  { box-shadow: 0 0 0 6px rgba(255, 210, 100, 0.45); background-color: rgba(255, 210, 100, 0.28); }
+  50%  { box-shadow: 0 0 0 4px rgba(255, 210, 100, 0.28); background-color: rgba(255, 210, 100, 0.16); }
+  100% { box-shadow: 0 0 0 0  rgba(255, 210, 100, 0.0);   background-color: rgba(255, 210, 100, 0.00); }
+}

@@ -1,0 +1,77 @@
+{
+  "summary": "Iter 35 — City-alias canonicalisation + Outstation admin analytics report + rider_vendors drop VERIFIED end-to-end. Backend 18/18 tests pass (1 skipped - non-blocking contract-fetch endpoint), 6/6 frontend alias UI scenarios PASS, admin outstation report renders with all KPI cards + gradient top-routes + city aggregations. rider_vendors collection is gone from mongo and its routes return 404.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter35_city_aliases_outstation_report.py",
+    "/app/test_reports/pytest/iter35.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "BookingFlow.jsx now 732 lines (over 700 threshold). Consider splitting per-step subcomponents (Step1..Step6) — same feedback as iter33, still not blocking.",
+    "routes/city_aliases.py: `load_alias_map` idempotent-inserts DEFAULT_ALIASES on cold-start but there's no path for admin to update the alias table via a dedicated POST/PUT (only reset). Admin must use the generic PUT /admin/settings/city_aliases. Consider adding an explicit PUT /admin/city-aliases endpoint for clarity.",
+    "server.py:_outstation_check falls back to raw normalised strings when reverse_map is empty — this could cause a race on very first request before _refresh_city_aliases completes. The current code does await _refresh_city_aliases() inside create_booking when _CITY_ALIAS_MAP is empty, so the race is mitigated at request time. Safe.",
+    "outstation_report.py: aggregation reads $pricing.artist_fee — verified consistent with booking snapshot format. Report matches admin curl (11 outstation / 91 total in current dataset).",
+    "iter7_routes.py public settings whitelist correctly exposes 'city_aliases' without leaking secrets — verified anonymously.",
+    "Cleanup: /app/backend/tests/test_iter29_concierge_homepage_rider.py and test_iter31_partners_insights_concierge.py still exercise the removed /rider-wallet/vendors and /partners routes — these tests will now fail if executed. Consider deprecating those tests or updating them to assert 404 (as iter35 test does)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter35_city_aliases_outstation_report.py"
+  ],
+  "success_rate": {
+    "backend": "100% (18/18 executed pass, 1 skipped-non-blocking)",
+    "frontend": "100% (6/6 alias UI scenarios + admin outstation report KPI cards + top-routes + city tables + window selector all render)"
+  },
+  "test_credentials": "Admin: admin@booktalent.com/Admin@123; Customer: customer@booktalent.com/Customer@123; Artist Priya (Mumbai): priya@booktalent.com/Artist@123; Payment OTP: 123456",
+  "seed_data_creation": "4 TEST_ALIAS_VENUE bookings created under customer@booktalent.com via alias-parametrised test (Bombay/New Delhi/Delhi NCR/Mumbai). All status=pending_payment. Live in customer dashboard but harmless (no artist accept, no payment). Prefixed venue='TEST_ALIAS_VENUE' and notes='TEST_iter35 alias-check ...' for identifiability.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iter 35 fully verified — alias canonicalisation works end-to-end: (backend) creates bookings with correct is_outstation, (public) /settings/public exposes city_aliases anonymously, (admin) can inspect/reset the alias table, (frontend) BookingFlow reads platformSettings.city_aliases and hides the outstation notice when the event city is an alias of the artist city. Outstation admin report renders correctly with 11 outstation bookings out of 91 total, top route Mumbai→Delhi. rider_vendors collection is dropped. If regressing iter35, run: pytest /app/backend/tests/test_iter35_city_aliases_outstation_report.py -v",
+  "verified_scenarios": {
+    "admin_get_city_aliases_returns_16_groups_and_reverse_map": true,
+    "reverse_map_new_delhi_to_delhi": true,
+    "reverse_map_bombay_to_mumbai": true,
+    "reverse_map_bangalore_to_bengaluru": true,
+    "reverse_map_calcutta_to_kolkata_madras_to_chennai_gurugram_to_gurgaon": true,
+    "non_admin_forbidden_on_admin_city_aliases": true,
+    "admin_reset_restores_defaults": true,
+    "public_settings_exposes_city_aliases_anonymously": true,
+    "public_settings_does_not_leak_secrets": true,
+    "booking_bombay_mumbai_artist_is_outstation_false": true,
+    "booking_new_delhi_mumbai_artist_is_outstation_true": true,
+    "booking_delhi_ncr_mumbai_artist_is_outstation_true": true,
+    "booking_mumbai_mumbai_artist_is_outstation_false": true,
+    "outstation_report_admin_only_403_for_customer": true,
+    "outstation_report_all_time_shape_correct": true,
+    "outstation_report_days_30_filter_works": true,
+    "outstation_report_days_365_filter_works": true,
+    "outstation_report_top_routes_has_artist_city_event_city_count_avg_fee_total_fee": true,
+    "rider_wallet_vendors_returns_404": true,
+    "partners_slug_returns_404": true,
+    "admin_rider_wallet_vendors_returns_404": true,
+    "rider_vendors_collection_not_in_mongo": true,
+    "contracts_zero_rider_wallet_references": true,
+    "contracts_have_outstation_logistics_block_when_outstation": true,
+    "frontend_admin_sidebar_sb_outstation_report_visible": true,
+    "frontend_kpi_out_bookings_renders": true,
+    "frontend_kpi_out_gmv_renders": true,
+    "frontend_kpi_out_avg_renders": true,
+    "frontend_kpi_samecity_renders": true,
+    "frontend_top_routes_shows_mumbai_delhi": true,
+    "frontend_window_selector_present": true,
+    "frontend_bookingflow_bombay_hides_outstation_notice": true,
+    "frontend_bookingflow_bangalore_shows_notice": true,
+    "frontend_bookingflow_bengaluru_shows_notice": true,
+    "frontend_bookingflow_new_delhi_shows_notice": true,
+    "frontend_bookingflow_delhi_ncr_shows_notice": true,
+    "frontend_bookingflow_mumbai_hides_notice": true,
+    "gst_math_5pct_platform_18pct_intact": true
+  }
+}

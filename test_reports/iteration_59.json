@@ -1,0 +1,29 @@
+{
+  "summary": "Iter 58 v2 verified end-to-end. All P0 acceptance criteria PASS on the deployed preview: (1) Full booking happy path via UI as customer@booktalent.com finishes at step 6 with data-testid=step-success visible, booking-ref pill 'BT-260727-958E01' and 'Booking Confirmed!' heading — URL stays on /book/... with ZERO 401s and NO redirect to /login. (2) Cookies cleared mid-flow between step 4 and 5 then clicking Pay produces the friendly toast 'Your session has expired. Please refresh the page and sign in again.' and URL stays on /book/... (no auto-redirect anywhere). (3) Anonymous visit to / triggers /api/auth/me 401 but the landing page renders with no session-expired toast and no redirect. (4) Backend regression pytest 5/5 pass (test_iter58_booking_payment.py) — POST /bookings → /payments/init → /payments/verify with mock_otp=123456 returns 200 with status=pending_artist and payment_status=token_paid. The customer_travel_allowance='' -> 422 blocker reported in iter 58 v1 has been correctly fixed in BookingFlow.jsx (line 314-322): explicit payload builder coerces empty string to 0 before POST /bookings.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iter58_booking_payment.py",
+    "/app/test_reports/pytest/iter58_v2.xml",
+    "/app/test_reports/iter58_v2_success.png",
+    "/app/test_reports/iter58_v2_cleared.png"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "api.js (iter58 v2): interceptor is now message-rewrite-only — no dispatchEvent, no window.location. This is the right minimal fix; component-level catch blocks + Protected in App.js handle all real redirects. Verified zero 401s trigger any nav.",
+    "auth.jsx: bt:session-expired handler removed cleanly; only /auth/me probe + login/register/logout remain. useMemo on context value avoids re-render fanout.",
+    "BookingFlow.jsx line 314-322: explicit payload with Number coercion for customer_travel_allowance is the correct fix. Consider also whitelisting fields instead of ...form to avoid future silent 422s from other empty-string fields.",
+    "auth.jsx line 30 localStorage.removeItem inside try/catch — good defensive coding for storage-disabled browsers."
+  ],
+  "updated_files": [
+    "/app/test_reports/pytest/iter58_v2.xml (regenerated)",
+    "/app/test_reports/iteration_59.json (new)"
+  ],
+  "success_rate": {"backend": "100% (5/5 pytest passed)", "frontend": "100% (3/3 iter-58 v2 acceptance criteria fully green: happy path, cookie-eviction friendly toast without redirect, anonymous landing without redirect)"},
+  "test_credentials": "customer@booktalent.com / Customer@123 (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "One live confirmed booking BT-260727-958E01 was created during the happy-path UI test (Kavya Menon, 2026-07-27 19:00, Grand Hyatt Mumbai, ₹4,425 platform fee token paid). One extra booking was created during the cookie-eviction test but never completed (step 5 payment blocked by cleared cookies). Backend pytest also created another booking with customer_name='TEST Iter58'. None cleaned up (no bulk-delete endpoint).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iter 58 v2 is fully verified. Both the P0 bug (Pay redirects to /login) and the iter 58 v1 regression (aggressive interceptor pulling users off booking on transient 401s) are resolved. The customer_travel_allowance=''→422 bug flagged in iter 58 v1 report is also fixed via explicit payload coercion in BookingFlow.jsx. All future iterations can trust /app/backend/tests/test_iter58_booking_payment.py as the anchor regression for booking+payment.",
+  "rca of the issue": "Original P0: axios interceptor in api.js (iter 58 v1) dispatched a bt:session-expired event on EVERY 401, and AuthProvider hard-redirected via window.location.href to /login?returnTo=... after 800ms. Background probes (/auth/me, /notifications) that transiently 401 during the booking flow yanked the user off the payment page. Iter 58 v2 fix: kept ONLY the response-detail message rewrite in the interceptor; removed the event dispatch AND the session-expired listener in auth.jsx. Route-level Protected in App.js still catches genuinely anonymous users when useAuth().user is null. Additionally, the tail-end 422 bug (BookingFlow spreading form.customer_travel_allowance='' into POST /bookings) was fixed with an explicit payload builder that coerces the field to Number|0. Net verified behaviour: authenticated user completes booking without any interceptor-induced navigation; transient/background 401s are silently rewritten but do NOT redirect; only a genuine session loss surfaces the friendly toast when the user takes an authenticated action."
+}

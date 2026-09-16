@@ -1,0 +1,21 @@
+{
+  "summary": "Iter 37 outstation-notice content update fully verified. GET /api/settings/public returns the exact 455/479/311 char customer-supplied wording; both required sentences and 'Artist Performance Fee or the Platform Service Fee' phrase present in the correct keys; zero occurrences of {artist_city}/{event_city} placeholders. BookingFlow Step 3 outstation-notice + Step 4 review-outstation-notice + outstation-ack + step4-next disable-then-enable all working. whiteSpace: pre-line renders the \\n\\n as visible paragraph breaks (screenshots confirm 2 distinct paragraphs on both Step 3 and Step 4). Same-city (Mumbai), alias (Bombay) correctly hide the notice; alias Delhi NCR correctly shows. booking-fee-note stays visible on all steps with new copy and no old 'discussed and managed directly' text. Admin PUT /api/admin/settings/outstation_notice round-trip works — override propagates to UI, restore returns notice to exact 455-char original. GST math verified in UI (60,900 x 5% = 3,045; x 18% = 548; total 3,593) and via booking create (special_instructions persisted, is_outstation flag correct).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iter37_outstation.py",
+    "/app/test_reports/pytest/iter37_pytest.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "BookingFlow.jsx L436 still contains a hard-coded English fallback that references the old '{artist_city}/{event_city}' placeholder tokens. Fallback is only used if platformSettings.outstation_notice is empty, so it's cosmetic today, but consider updating the fallback string to also match the new customer-supplied wording (or making it a simple 'Outstation booking - additional expenses apply.') for consistency.",
+    "The .replace('{artist_city}', ...).replace('{event_city}', ...) chain on L437-438 is now dead code for the live copy (no placeholders remain). Safe to remove to reduce noise, or keep for backward compatibility if admins ever restore placeholder-style copy via /admin/settings."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter37_outstation.py (new)"],
+  "success_rate": {"backend": "100% (6/6 pytest)", "frontend": "100% (all outstation UI scenarios pass)"},
+  "test_credentials": "Admin: admin@booktalent.com / Admin@123. Customer: customer@booktalent.com / Customer@123. From /app/memory/test_credentials.md.",
+  "seed_data_creation": "Created 1 test booking (TEST_iter37 User, Delhi outstation, Acoustic Solo pkg) via pytest — safe to leave, prefixed TEST_iter37 for later cleanup. Admin edit test restored settings to exact original 455-char wording.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iter 37 outstation content update passes end-to-end. Verify settings via GET /api/settings/public — must remain 455/479/311 chars. If any future test overrides via /api/admin/settings/<key>, always restore to the exact original — this test suite includes an idempotent round-trip (TestAdminEditRoundtrip) that reads-then-writes-back the current value, so it's safe to re-run without stale-override risk. Priya Sharma artist_id=22c3967c-e432-41e8-bdfb-a0a54b82ee1b, Mumbai-based, so any city != Mumbai/Bombay triggers outstation."
+}

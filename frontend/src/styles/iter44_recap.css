@@ -1,0 +1,310 @@
+/* ============================================================================
+   Iter 44 — Multi-Artist Event: Booking Recap + Suggestion Strip
+   ============================================================================ */
+
+/* ─── /recap/:event_id public page ───────────────────────────────────────── */
+.recap-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 16px;
+  background:
+    radial-gradient(1200px 800px at 10% -10%, rgba(167, 139, 250, 0.14), transparent 60%),
+    radial-gradient(1000px 700px at 100% 100%, rgba(245, 212, 122, 0.10), transparent 60%),
+    #0b0a12;
+  background-attachment: fixed;
+  color: var(--text, #eae7f0);
+}
+
+.recap-loading { text-align: center; color: var(--text-muted, #a3a1b3); }
+
+.recap-card {
+  position: relative;
+  width: 100%;
+  max-width: 780px;
+  border-radius: 24px;
+  padding: 40px 32px 28px;
+  background: linear-gradient(180deg, rgba(30, 27, 46, 0.85) 0%, rgba(20, 17, 30, 0.95) 100%);
+  border: 1px solid rgba(245, 212, 122, 0.22);
+  box-shadow:
+    0 30px 80px -20px rgba(0, 0, 0, 0.7),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(12px);
+  overflow: hidden;
+}
+
+.recap-card::before {
+  /* subtle grain texture */
+  content: "";
+  position: absolute; inset: 0;
+  background-image:
+    radial-gradient(circle at 20% 20%, rgba(245, 212, 122, 0.08) 0, transparent 40%),
+    radial-gradient(circle at 80% 80%, rgba(167, 139, 250, 0.08) 0, transparent 40%);
+  pointer-events: none;
+  opacity: 0.9;
+}
+
+.recap-watermark {
+  position: absolute;
+  top: 14px;
+  right: 18px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: rgba(245, 212, 122, 0.75);
+  text-transform: uppercase;
+}
+.recap-watermark strong { color: #f5d47a; font-weight: 700; }
+
+/* Hero */
+.recap-hero { text-align: center; margin-bottom: 20px; position: relative; }
+.recap-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 12px; font-weight: 600;
+  color: #0b0a12; background: linear-gradient(135deg, #f5d47a, #d1a353);
+  margin-bottom: 14px;
+  letter-spacing: 0.04em;
+}
+.recap-title {
+  font-size: clamp(28px, 5vw, 44px);
+  line-height: 1.15;
+  font-weight: 700;
+  margin: 0;
+  background: linear-gradient(180deg, #ffffff 0%, #dcd6f7 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-transform: capitalize;
+}
+.recap-when { margin-top: 10px; font-size: 15px; color: #cfcbe0; }
+.recap-where { margin-top: 4px; font-size: 13px; color: #a3a1b3; }
+
+.recap-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(245, 212, 122, 0.35), transparent);
+  margin: 24px 0;
+}
+
+.recap-lineup-head {
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 16px;
+}
+.recap-count-pill {
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgba(167, 139, 250, 0.18);
+  color: #c4b5fd;
+  font-size: 12px; font-weight: 700;
+  border: 1px solid rgba(167, 139, 250, 0.28);
+}
+.recap-lineup-label {
+  font-size: 12px;
+  color: #a3a1b3;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+}
+
+.recap-artist-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.recap-artist-tile {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  text-decoration: none;
+  color: inherit;
+  transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+.recap-artist-tile:hover {
+  transform: translateY(-2px);
+  border-color: rgba(245, 212, 122, 0.35);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.recap-artist-thumb {
+  width: 52px; height: 52px;
+  flex: 0 0 52px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: linear-gradient(135deg, #6d28d9, #d1a353);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 26px;
+}
+.recap-artist-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.recap-artist-emoji { display: block; }
+
+.recap-artist-name { font-weight: 600; font-size: 14px; color: #eae7f0; }
+.recap-artist-cat { margin-top: 2px; }
+
+/* Footer: QR + share */
+.recap-footer {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 28px;
+  align-items: center;
+  margin-top: 4px;
+}
+
+@media (max-width: 640px) {
+  .recap-card { padding: 28px 20px 20px; }
+  .recap-footer { grid-template-columns: 1fr; text-align: center; }
+}
+
+.recap-qr-block { text-align: center; }
+.recap-qr {
+  width: 140px; height: 140px;
+  border-radius: 14px;
+  border: 1px solid rgba(245, 212, 122, 0.25);
+  padding: 6px;
+  background: #0b0a12;
+}
+.recap-qr-label {
+  font-size: 11px;
+  color: #a3a1b3;
+  margin-top: 6px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.recap-share-title {
+  font-size: 12px;
+  color: #a3a1b3;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  margin-bottom: 10px;
+}
+.recap-share-btns {
+  display: flex; flex-wrap: wrap; gap: 10px;
+}
+.recap-btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-weight: 600; font-size: 13px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  color: #eae7f0;
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+.recap-btn:hover { transform: translateY(-1px); }
+.recap-btn-wa { background: rgba(37, 211, 102, 0.14); border-color: rgba(37, 211, 102, 0.4); color: #25d366; }
+.recap-btn-wa:hover { background: rgba(37, 211, 102, 0.24); }
+.recap-btn-copy { background: rgba(167, 139, 250, 0.14); border-color: rgba(167, 139, 250, 0.4); color: #c4b5fd; }
+.recap-btn-copy:hover { background: rgba(167, 139, 250, 0.24); }
+.recap-btn-email { background: rgba(245, 212, 122, 0.14); border-color: rgba(245, 212, 122, 0.4); color: #f5d47a; }
+.recap-btn-email:hover { background: rgba(245, 212, 122, 0.24); }
+
+.recap-cta { margin-top: 14px; }
+.recap-brand-link {
+  font-size: 13px;
+  color: #a3a1b3;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+.recap-brand-link:hover { color: #f5d47a; }
+.recap-brand-link strong { color: #f5d47a; font-weight: 700; }
+
+.recap-empty {
+  text-align: center;
+  padding: 56px 24px;
+}
+
+/* ─── Post-success "Complete your event" suggestion strip ────────────────── */
+.event-strip {
+  margin-top: 28px;
+  padding: 20px;
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(167, 139, 250, 0.10), rgba(167, 139, 250, 0.02)),
+    rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(167, 139, 250, 0.22);
+}
+.event-strip-head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 14px;
+  flex-wrap: wrap; gap: 8px;
+}
+.event-strip-title {
+  font-family: var(--font-serif, "Playfair Display", serif);
+  font-size: 18px; font-weight: 700;
+  color: #eae7f0;
+}
+.event-strip-sub { font-size: 12px; color: #a3a1b3; margin-top: 2px; }
+
+.event-strip-scroll {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding: 4px 2px 8px;
+  scrollbar-width: thin;
+}
+.event-strip-scroll::-webkit-scrollbar { height: 6px; }
+.event-strip-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
+
+.event-strip-card {
+  flex: 0 0 200px;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  transition: transform 0.15s ease, border-color 0.15s ease;
+  cursor: pointer;
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+.event-strip-card:hover { transform: translateY(-2px); border-color: rgba(245, 212, 122, 0.4); }
+
+.event-strip-thumb {
+  width: 100%; aspect-ratio: 4/3;
+  border-radius: 10px;
+  overflow: hidden;
+  background: linear-gradient(135deg, #6d28d9, #d1a353);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 36px;
+  margin-bottom: 10px;
+}
+.event-strip-thumb img { width: 100%; height: 100%; object-fit: cover; }
+
+.event-strip-name { font-weight: 600; font-size: 13px; }
+.event-strip-cat { font-size: 11px; color: #a3a1b3; margin-top: 2px; }
+.event-strip-add {
+  display: inline-flex; align-items: center; gap: 4px;
+  margin-top: 8px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(245, 212, 122, 0.15);
+  color: #f5d47a;
+  font-size: 11px; font-weight: 600;
+  border: 1px solid rgba(245, 212, 122, 0.3);
+}
+
+/* ─── Mini cart pill on BookingFlow header ──────────────────────────────── */
+.cart-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(167, 139, 250, 0.15);
+  border: 1px solid rgba(167, 139, 250, 0.35);
+  color: #c4b5fd;
+  font-size: 12px; font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.cart-pill:hover { background: rgba(167, 139, 250, 0.25); }
+.cart-pill-badge {
+  background: #a78bfa; color: #0b0a12;
+  border-radius: 999px;
+  padding: 0 6px;
+  font-weight: 700; font-size: 11px;
+}

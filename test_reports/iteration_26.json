@@ -1,0 +1,48 @@
+{
+  "summary": "Sprint 3 (Artist Add-ons) backend verification — 22/22 pytest cases PASS after fixing one real production bug (chained motor .sort() calls on public list route did NOT compound; the last sort was silently overriding the first, so mandatory-first ordering was broken). Fix applied in /app/backend/routes/addons.py line 92: replaced `.sort(a, -1).sort(b, 1)` with `.sort([(a,-1),(b,1)])`. All other Sprint 3 behaviours verified in-line with the spec: CRUD echo, auth 403 for customer + cross-artist, public list excludes deleted+inactive, snapshots captured at booking-time with correct math (unit_price/subtotal/gst_amount/total), pricing.addons_total/artist_fee/platform_fee(5%)/gst(18%)/total all consistent, mandatory enforcement fires on both empty-selections AND optional-only-selections AND missing-field, quantity cap 400 'Invalid quantity', inactive addon 400 'not available', snapshot immutability after PATCH price=99999 still shows unit_price=5000 on the historic booking, legacy addons:['dhol'] path still works when no mandatory addons exist. Regression pings healthy (auth login, /search/ai POST, /uploads/init, /wallet, /kyc/mine).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "GET /api/artists/{user_id}/addons",
+        "issue": "FIXED IN-PLACE — original code used `.sort('is_mandatory', -1).sort('price', 1)` which in motor/pymongo does NOT compound; the second sort() replaces the first. Result: mandatory add-ons were NOT surfaced first in the public list (customers would see them sorted purely by price). Fix applied: switched to `.sort([('is_mandatory', -1), ('price', 1)])` compound tuple list."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter26_addons.py",
+    "/app/test_reports/pytest/iter26.xml"
+  ],
+  "action_items": [
+    "Sprint 3 backend contract is rock-solid — safe to layer BookingFlow.jsx add-on checkboxes + ArtistDashboard add-on CRUD UI in Sprint 3.5.",
+    "When wiring the UI, remember: (a) if artist has any mandatory addons and the customer submits empty selections, backend returns 400 with detail starting 'Mandatory add-on '{name}' must be selected' — surface this inline; (b) inactive addons are filtered by the public list but the frontend must still handle the 'Add-on X not available' 400 if a customer had a stale addon in their cart when the artist deactivated it.",
+    "Consider adding a MongoDB index: db.artist_addons.createIndex({artist_id:1, deleted:1, active:1}) — public list scans on every artist profile page load and this will become the hot query."
+  ],
+  "critical_code_review_comments": [
+    "routes/addons.py line 61 (list_my_addons): also uses `.sort('created_at', -1)` — single-field sort works fine, no compound issue here. LGTM.",
+    "routes/addons.py line 116-121 (snapshot_addons): `docs = {...} if ids else {}` — correct short-circuit, avoids empty $in query.",
+    "routes/addons.py line 125-129: dedupes `addon_id` per customer submission via `seen` set — good, prevents customers from stacking the same addon multiple times as separate entries. But note: this silently drops duplicates instead of 400ing. Consider raising 400 'Duplicate add-on selection' for stricter UX contract.",
+    "routes/addons.py line 132: `raise HTTPException(400, f'Add-on {aid} not available')` — uses the UUID in error message, not the name. Frontend won't be able to display a human-readable name here (because addon is inactive/deleted, we don't have the name in scope). Acceptable but consider a friendlier 'This add-on is no longer available' generic message.",
+    "server.py line 1161-1168: `addon_total = legacy + v2` is stored as a single `addons_total` in pricing — but only v2 has snapshots. If a booking mixes legacy slug 'dhol' + addon_selections, the pricing.addons_total is opaque (customer/artist can't tell which portion came from where). Non-blocking; legacy is a compat shim being phased out.",
+    "server.py line 1206: no explicit `addon_selections` field stored on the booking doc; the v2 selection intent is preserved only via `addon_snapshots`. This is fine and probably intentional (snapshots are source of truth) — mentioning in case a future analytics query needs the raw selection list.",
+    "routes/addons.py line 43: dependency injection pattern is inconsistent — other route modules (wallet, kyc) accept `get_current_user` as kwarg; here it's the same but the signature also enumerates utcnow/new_id/clean. That's fine; just noting for consistency review down the line.",
+    "AddonBody.gst_pct upper bound of 100 (line 29) — that's a >100% tax cap. Real GST is 0/5/12/18/28 in India. Not a bug, but tighter validation (Literal[0,5,12,18,28]) would prevent typos like 180 vs 18.",
+    "snapshot_addons() line 155-163: mandatory-check does a SECOND find on artist_addons — the same collection was already queried on line 115. Micro-optimisation: fetch all active addons for the artist once, filter in-memory. Not blocking at current scale."
+  ],
+  "updated_files": [
+    "/app/backend/routes/addons.py — fixed compound sort in /artists/{user_id}/addons public list (1-line change).",
+    "/app/backend/tests/test_iter26_addons.py — NEW test file, 22 pytest cases covering all Sprint 3 acceptance criteria."
+  ],
+  "success_rate": {"backend": "100% (22/22 pytest)", "frontend": "N/A (backend-only test per review request)"},
+  "test_credentials": "priya@booktalent.com/Artist@123 (artist, used), vortex@booktalent.com/Artist@123 (secondary artist, used for cross-artist authz), customer@booktalent.com/Customer@123 (used for booking flow). All logged in successfully.",
+  "seed_data_creation": "Created 5 addon docs on Priya (id=22c3967c-…-e1b) prefixed TEST_: TEST_Sound_System (mandatory, 5000, 18% GST), TEST_Extra_Hour (optional, 6000, 18%), TEST_Cheap_Optional (500, 0%), TEST_Inactive (200, active=false), TEST_ToDelete (100, soft-deleted). Also created 2 successful test bookings (legacy-dhol + snapshot-immutability booking) referenced by ref TEST venue in Mumbai. Cleanup approach: test file idempotently deletes all Priya's addons at start of next run via mongosh, but for now records are left in place per iter25 pattern.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Sprint 3 backend contract verified end-to-end. If retesting: `mongosh booktalent --eval 'db.artist_addons.deleteMany({artist_id:\"22c3967c-e432-41e8-bdfb-a0a54b82ee1b\"})'` before running pytest to guarantee a clean slate. Test file /app/backend/tests/test_iter26_addons.py is self-contained (loads REACT_APP_BACKEND_URL from /app/frontend/.env directly). Key test data flow: TestAddonCRUD creates mandatory_id + extra_hour_id in module-scoped `artist_ctx` fixture, TestPublicList adds cheap_id + inactive_id, TestBookingWithAddons uses those and stashes the booking_id for TestSnapshotImmutability. Compound-sort fix in /app/backend/routes/addons.py is a 1-line change and safe. Frontend BookingFlow.jsx add-on picker + ArtistDashboard add-on CRUD UI is Sprint 3.5 work — no frontend touched this iteration.",
+  "rca_of_the_issue": "Public list sort bug — RCA: pymongo/motor Cursor.sort() when called multiple times does not accumulate; each call replaces the sort spec. The original code `.sort('is_mandatory', -1).sort('price', 1)` therefore behaved identically to `.sort('price', 1)` alone, so mandatory add-ons were interleaved by price instead of being surfaced first. Reproduction: GET /api/artists/22c3967c-…-e1b/addons returned [{price:500, mandatory:false}, {price:6000, mandatory:false}, {price:99999, mandatory:true}] before fix. Fix: pass a list of (field, direction) tuples in a single .sort() call so mongo receives a compound sort spec. Verified post-fix: mandatory entry (price=5000) sits at index 0 and non-mandatory items are price-ascending after it."
+}
