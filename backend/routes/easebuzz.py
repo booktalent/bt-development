@@ -817,6 +817,25 @@ def make_easebuzz_router(*, db, get_current_user, admin_only, new_id, utcnow,
             except Exception:
                 retrieve_ok = False
 
+            # Easebuzz sandbox/live can return a generic retrieve error even
+            # after it has posted a signed success callback. The callback is
+            # still trusted only when it contains the gateway reference and
+            # the charged amount matches the payment we created.
+            callback_amount = form.get("amount")
+            try:
+                callback_amount_matches = round(float(callback_amount), 2) == round(float(pay.get("amount", 0)), 2)
+            except (TypeError, ValueError):
+                callback_amount_matches = False
+            callback_verified = bool(
+                status == "success"
+                and form.get("easepayid")
+                and callback_amount_matches
+                and (form.get("error") or form.get("error_Message", "")).lower() == "transaction is successful."
+            )
+            if not retrieve_ok and callback_verified:
+                retrieve_ok = True
+                retrieved_status = "callback_success"
+
             # Iter 71 — SEC-003 hardening. Previous logic was fail-open:
             # if the retrieve call errored or returned an unparsable
             # payload, `retrieved_status` was empty and the guard
@@ -850,7 +869,9 @@ def make_easebuzz_router(*, db, get_current_user, admin_only, new_id, utcnow,
                     "gateway_response": form,
                     "gateway_retrieve": retrieve,
                     "verified_at": _now(),
-                }},
+                },
+                "$unset": {"failure_reason": ""},
+                },
             )
             await _finalise_payment(pay, form)
             return RedirectResponse(

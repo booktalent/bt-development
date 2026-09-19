@@ -89,6 +89,17 @@ export default function PaymentReturn() {
   const isBatch = pay?.batch || bookings.length > 1;
   const eventId = pay?.event_id || primary?.event_id;
 
+  const retryBooking = () => {
+    if (!primary?.artist_id) {
+      nav("/customer");
+      return;
+    }
+    const retryParams = new URLSearchParams();
+    if (eventId) retryParams.set("event_id", eventId);
+    const query = retryParams.toString();
+    nav(`/book/${primary.artist_id}${query ? `?${query}` : ""}`);
+  };
+
   const downloadInvoice = async () => {
     if (!primary) return;
     try {
@@ -252,7 +263,7 @@ export default function PaymentReturn() {
             </p>
             <p className="text-muted" style={{ fontSize: 12, marginBottom: 24 }}>Transaction: <code>{txnid}</code></p>
             <div className="flex gap-12 justify-center" style={{ flexWrap: "wrap" }}>
-              <button className="btn btn-gold" onClick={() => nav(-1)} data-testid="return-try-again">Try Again</button>
+              <button className="btn btn-gold" onClick={retryBooking} data-testid="return-try-again">Try Again</button>
               <Link to="/customer" className="btn btn-ghost" data-testid="return-view-bookings-failed">My Bookings</Link>
             </div>
           </div>
