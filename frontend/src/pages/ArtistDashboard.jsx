@@ -59,6 +59,7 @@ export default function ArtistDashboard() {
   });
   const [subHighlight, setSubHighlight] = useState(null); // Iter 63.1 — from concierge upgrade CTA
   const [data, setData] = useState({ bookings: [], packages: [], media: [], analytics: {}, reviews: [] });
+  const [liveProgress, setLiveProgress] = useState(null);
   const [showWizard, setShowWizard] = useState(false);
   const [completion, setCompletion] = useState(null); // Iter 56 — onboarding nudge
   const [wizardStartSection, setWizardStartSection] = useState(null);
@@ -134,14 +135,16 @@ export default function ArtistDashboard() {
   }, [user]);
 
   const refresh = async () => {
-    const [b, p, m, a, r] = await Promise.all([
+    const [b, p, m, a, r, progress] = await Promise.all([
       api.get("/bookings/mine"),
       api.get("/packages/mine"),
       api.get("/media"),
       api.get("/analytics/me"),
       api.get(`/reviews/artist/${user.id}`),
+      api.get("/onboarding/live-progress"),
     ]);
     setData({ bookings: b.data, packages: p.data, media: m.data, analytics: a.data, reviews: r.data });
+    setLiveProgress(progress.data);
   };
 
   const doAction = async (bid, action, extra = {}) => {
@@ -224,6 +227,8 @@ export default function ArtistDashboard() {
               <p>{data.bookings.filter(b => b.status === "pending_artist").length} new requests · {data.analytics.profile_views || 0} profile views</p>
             </div>
           </div>
+
+          <GoLiveProgress progress={liveProgress} onOpenStep={(step) => setTab(step.tab)} />
 
           {/* Iter 63 — Agency invite banner (accept / decline). Sits at the
               top so artists notice immediately on next login. */}
@@ -340,7 +345,10 @@ export default function ArtistDashboard() {
         </div>
       </main>
       {/* Mandatory T&C modal — fires when KYC is approved but T&C not yet accepted */}
-      <TncAgreementGate toast={toast} onDone={() => refreshMe && refreshMe()} />
+      <TncAgreementGate toast={toast} onDone={() => {
+        if (refreshMe) refreshMe();
+        refresh();
+      }} />
       {showWizard && <OnboardingWizard
         user={user}
         onComplete={async () => {
@@ -492,6 +500,80 @@ function RevenueSparkline({ series = [], onMonthClick = null }) {
         );
       })}
     </svg>
+  );
+}
+
+function GoLiveProgress({ progress, onOpenStep }) {
+  if (!progress) return null;
+  const next = progress.next_step;
+  const isLive = progress.is_live;
+
+  return (
+    <section
+      className="card card-pad mb-16"
+      data-testid="go-live-progress"
+      style={{
+        border: isLive ? "1px solid rgba(74, 222, 128, 0.45)" : "1px solid rgba(212,175,55,0.38)",
+        background: isLive
+          ? "linear-gradient(135deg, rgba(34,197,94,0.13), rgba(212,175,55,0.08))"
+          : "linear-gradient(135deg, rgba(212,175,55,0.15), rgba(124,58,237,0.10))",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
+        <div style={{ flex: 1, minWidth: 240 }}>
+          <div className="flex items-center gap-8">
+            <span style={{ fontSize: 23 }}>{isLive ? "✓" : "◎"}</span>
+            <h2 className="font-serif fs-20 fw-700" style={{ margin: 0 }}>
+              {isLive ? "Your profile is LIVE" : "Go-live progress: " + progress.percent + "%"}
+            </h2>
+          </div>
+          <p className="text-muted fs-13" style={{ margin: "7px 0 0" }}>{progress.message}</p>
+        </div>
+        {!isLive && next && (
+          <button type="button" className="btn btn-gold btn-sm" onClick={() => onOpenStep(next)} data-testid="go-live-progress-cta">
+            {next.admin_action ? "View KYC status" : "Continue"} →
+          </button>
+        )}
+      </div>
+
+      <div role="progressbar" aria-label="Artist go-live progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow={progress.percent}
+        style={{ height: 8, borderRadius: 999, overflow: "hidden", background: "rgba(255,255,255,0.12)", marginTop: 16 }}>
+        <div style={{
+          width: String(progress.percent) + "%", height: "100%", borderRadius: 999,
+          background: isLive ? "linear-gradient(90deg,#4ade80,#d4af37)" : "linear-gradient(90deg,#d4af37,#f1d17a)",
+          transition: "width 300ms ease",
+        }} />
+      </div>
+
+      <div className="flex justify-between text-muted fs-12" style={{ marginTop: 8 }}>
+        <span>{progress.completed_steps} of {progress.total_steps} steps complete</span>
+        <span>{isLive ? "Visible and bookable" : String(progress.steps_left) + " step" + (progress.steps_left === 1 ? "" : "s") + " left"}</span>
+      </div>
+
+      {!isLive && (
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 14 }}>
+          {progress.steps.map((step) => (
+            <button
+              key={step.id}
+              type="button"
+              onClick={() => !step.complete && onOpenStep(step)}
+              disabled={step.complete}
+              title={step.label}
+              data-testid={"go-live-step-" + step.id}
+              style={{
+                border: step.complete ? "1px solid rgba(74,222,128,0.35)" : "1px solid rgba(255,255,255,0.18)",
+                background: step.complete ? "rgba(74,222,128,0.12)" : "rgba(255,255,255,0.04)",
+                color: step.complete ? "#a7f3d0" : "rgba(240,238,255,0.82)",
+                borderRadius: 999, padding: "5px 9px", fontSize: 11,
+                cursor: step.complete ? "default" : "pointer",
+              }}
+            >
+              {step.complete ? "✓ " : "○ "}{step.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -2015,6 +2097,7 @@ function KYC({ toast, refresh }) {
   const [dob, setDob] = useState("");
   const [kyc, setKyc] = useState(null);
   const [busy, setBusy] = useState(false);
+  const today = new Date().toISOString().slice(0, 10);
 
   const reload = () => api.get("/kyc/mine").then((r) => setKyc(r.data));
   useEffect(() => { reload(); }, []);
@@ -2034,6 +2117,9 @@ function KYC({ toast, refresh }) {
     const aaNum = aadhaarNo.replace(/\s/g, "");
     if (aadhaarFile && !/^\d{12}$/.test(aaNum)) return "Aadhaar number must be exactly 12 digits";
     if (panFile && !/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(panNo.toUpperCase())) return "PAN must be in format ABCDE1234F";
+    if (dob && (!/^\d{4}-\d{2}-\d{2}$/.test(dob) || dob > today)) {
+      return "Enter a valid date of birth with a 4-digit year";
+    }
     return null;
   };
 
@@ -2092,7 +2178,8 @@ function KYC({ toast, refresh }) {
             </div>
             <div className="field">
               <div className="field-label">Date of Birth</div>
-              <input type="date" className="field-input" value={dob} onChange={(e) => setDob(e.target.value)} data-testid="kyc-dob" />
+              <input type="date" className="field-input" value={dob} min="1900-01-01" max={today}
+                onChange={(e) => setDob(e.target.value)} data-testid="kyc-dob" />
             </div>
           </div>
 

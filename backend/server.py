@@ -1167,6 +1167,77 @@ async def get_onboarding_status(user: dict = Depends(get_current_user)):
     }
 
 
+@api.get("/onboarding/live-progress")
+async def get_live_progress(user: dict = Depends(get_current_user)):
+    """Return the artist's customer-facing-listing readiness in one place.
+
+    The dashboard uses this instead of inferring progress independently from
+    profile, KYC and media endpoints.  A listing is only 100% complete when
+    its canonical KYC status is ``live`` — the same gate used by public search.
+    """
+    if user["role"] != "artist":
+        raise HTTPException(403, "Artists only")
+
+    profile = await db.artist_profiles.find_one({"user_id": user["id"]}) or {}
+    media_count = await db.media.count_documents({
+        "user_id": user["id"], "type": {"$in": ["profile", "cover", "gallery"]},
+    })
+    package_count = await db.packages.count_documents({"artist_id": user["id"]})
+    availability_count = await db.availability.count_documents({"user_id": user["id"]})
+    kyc_status = profile.get("kyc_status") or "kyc_pending"
+
+    # Eight discrete milestones make the percentage actionable while keeping
+    # the admin-controlled KYC approval separate from artist-entered setup.
+    kyc_submitted = kyc_status not in {"registration_pending", "kyc_pending", "unverified"}
+    kyc_approved = kyc_status in {"kyc_approved", "tnc_pending", "agreement_generated", "live"}
+    is_live = kyc_status == "live" and not profile.get("suspended")
+    steps = [
+        {"id": "basic_profile", "label": "Add your stage name, category and city",
+         "complete": bool(profile.get("stage_name") and profile.get("category") and profile.get("city")), "tab": "profile"},
+        {"id": "branding", "label": "Add your bio and languages",
+         "complete": bool(profile.get("bio") and (profile.get("languages") or [])), "tab": "profile"},
+        {"id": "media", "label": "Add a profile photo, cover or gallery image",
+         "complete": media_count > 0, "tab": "media"},
+        {"id": "packages", "label": "Create at least one performance package",
+         "complete": package_count > 0, "tab": "packages"},
+        {"id": "availability", "label": "Set your availability calendar",
+         "complete": availability_count > 0, "tab": "calendar"},
+        {"id": "kyc_submit", "label": "Submit your KYC documents",
+         "complete": kyc_submitted, "tab": "kyc"},
+        {"id": "kyc_approval", "label": "Wait for KYC approval",
+         "complete": kyc_approved, "tab": "kyc", "admin_action": True},
+        {"id": "go_live", "label": "Accept Terms & Conditions to go live",
+         "complete": is_live, "tab": "kyc"},
+    ]
+    completed = sum(1 for step in steps if step["complete"])
+    next_step = next((step for step in steps if not step["complete"]), None)
+
+    if is_live:
+        message = "Your artist profile is live and can receive bookings."
+    elif kyc_status == "kyc_under_review":
+        message = "Your KYC is under review. We will notify you once it is approved."
+    elif kyc_status == "kyc_changes_required":
+        message = "Your KYC needs changes before your profile can go live."
+    elif kyc_status == "kyc_rejected":
+        message = "Your KYC was rejected. Contact support to re-apply."
+    elif kyc_status in {"kyc_approved", "tnc_pending", "agreement_generated"}:
+        message = "KYC is approved — accept Terms & Conditions to go live."
+    else:
+        message = next_step["label"] if next_step else "Complete your onboarding to go live."
+
+    return {
+        "percent": round(completed * 100 / len(steps)),
+        "completed_steps": completed,
+        "total_steps": len(steps),
+        "steps_left": len(steps) - completed,
+        "is_live": is_live,
+        "kyc_status": kyc_status,
+        "message": message,
+        "next_step": next_step,
+        "steps": steps,
+    }
+
+
 @api.post("/onboarding/complete")
 async def complete_onboarding(user: dict = Depends(get_current_user)):
     if user["role"] != "artist":

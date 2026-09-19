@@ -1,6 +1,7 @@
 """KYC — artist identity verification (submit + admin decide)."""
 from __future__ import annotations
 import re
+from datetime import date
 from typing import Callable, Dict, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -13,6 +14,7 @@ KYC_MAX_BYTES = 5 * 1024 * 1024  # 5 MB per doc
 
 _AADHAAR_RX = re.compile(r"^\d{12}$")
 _PAN_RX = re.compile(r"^[A-Z]{5}[0-9]{4}[A-Z]$")
+_DOB_RX = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
 def _validate_data_url(label: str, dataurl: str) -> tuple[str, str]:
@@ -89,10 +91,22 @@ def make_router(
 
         aadhaar_no = (payload.get("aadhaar_number") or "").strip().replace(" ", "")
         pan_no = (payload.get("pan_number") or "").strip().upper()
+        dob = (payload.get("dob") or "").strip()
         if aadhaar_no and not _AADHAAR_RX.match(aadhaar_no):
             raise HTTPException(400, "Aadhaar number must be exactly 12 digits")
         if pan_no and not _PAN_RX.match(pan_no):
             raise HTTPException(400, "PAN must follow the format ABCDE1234F")
+        if dob:
+            # The date picker may be manipulated by a client, so validate the
+            # stored value too: ISO date with exactly a four-digit year.
+            if not _DOB_RX.match(dob):
+                raise HTTPException(400, "Date of birth must use YYYY-MM-DD with a 4-digit year")
+            try:
+                parsed_dob = date.fromisoformat(dob)
+            except ValueError:
+                raise HTTPException(400, "Date of birth is not a valid calendar date")
+            if parsed_dob > date.today():
+                raise HTTPException(400, "Date of birth cannot be in the future")
 
         if not (payload.get("aadhaar") or payload.get("pan")):
             raise HTTPException(400, "Upload at least one identity document (Aadhaar or PAN)")
@@ -120,7 +134,7 @@ def make_router(
             "aadhaar_number_masked": ("XXXX-XXXX-" + aadhaar_no[-4:]) if aadhaar_no else None,
             "pan_number": pan_no or None,
             "full_name": payload.get("full_name"),
-            "dob": payload.get("dob"),
+            "dob": dob or None,
             "status": "pending",
             "submitted_at": utcnow(),
             "decided_at": None,
