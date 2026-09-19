@@ -36,6 +36,7 @@ from easebuzz_service import (
     default_settings_document,
 )
 from financial_engine import compute_price
+from routes.crm_pay import _create_or_get_schedule, sync_booking_settlement
 
 log = logging.getLogger(__name__)
 
@@ -170,6 +171,8 @@ async def _finalise_bookings_after_success(
     expires_at = (_now() + timedelta(hours=confirm_hours)).isoformat()
 
     booking_ids = pay_doc.get("booking_ids") or ([pay_doc["booking_id"]] if pay_doc.get("booking_id") else [])
+    allocations = pay_doc.get("milestone_allocations") or []
+    allocation_by_booking = {a.get("booking_id"): a for a in allocations}
     docs = await db.bookings.find({"id": {"$in": booking_ids}}).to_list(50)
     refs: List[str] = []
     receipt_email: Optional[str] = None
@@ -184,12 +187,28 @@ async def _finalise_bookings_after_success(
             receipt_event_date = d.get("event_date")
         if d.get("status") != "pending_payment":
             continue
-        share = float((d.get("pricing") or {}).get("token_amount", 0) or 0)
+        allocation = allocation_by_booking.get(d["id"], {})
+        share = float(allocation.get("amount") or (d.get("pricing") or {}).get("token_amount", 0) or 0)
+        if allocation:
+            schedule = await db.payment_schedules.find_one({"id": allocation.get("schedule_id")}) or {}
+            milestones = schedule.get("milestones") or []
+            idx = int(allocation.get("milestone_index", -1))
+            if 0 <= idx < len(milestones) and milestones[idx].get("status") != "paid":
+                milestones[idx].update({
+                    "status": "paid", "amount_received": share, "paid_on": utcnow(),
+                    "method": "easebuzz", "reference": pay_doc.get("txnid", ""),
+                })
+                received = round(sum(float(m.get("amount_received", 0) or 0) for m in milestones if m.get("status") == "paid"), 2)
+                await db.payment_schedules.update_one(
+                    {"id": schedule["id"]},
+                    {"$set": {"milestones": milestones, "amount_received": received, "updated_at": utcnow()}},
+                )
+                await sync_booking_settlement(db, d["id"])
         await db.bookings.update_one(
             {"id": d["id"]},
             {"$set": {
                 "payment_status": "token_paid",
-                "amount_paid": share,
+                "amount_paid": float((await db.payment_schedules.find_one({"booking_id": d["id"]}) or {}).get("amount_received") or share),
                 "status": "pending_artist",
                 "expires_at": expires_at,
                 "confirmation_deadline_hours": confirm_hours,
@@ -518,8 +537,27 @@ def make_easebuzz_router(*, db, get_current_user, admin_only, new_id, utcnow,
                 {"$set": {"pricing": canonical}},
             )
 
+        # At confirmation collect only the first payment milestone.  The
+        # remainder stays due according to the admin-configured timeline.
+        allocations: List[Dict[str, Any]] = []
+        for d in docs:
+            schedule = await _create_or_get_schedule(db, d)
+            milestones = schedule.get("milestones") or []
+            next_idx = next((i for i, m in enumerate(milestones) if m.get("status") != "paid"), None)
+            if next_idx is None:
+                raise HTTPException(400, f"Booking {d.get('ref', d['id'])} has no outstanding payment milestone")
+            milestone = milestones[next_idx]
+            due = round(float(milestone.get("amount") or 0), 2)
+            if due <= 0:
+                raise HTTPException(400, f"Booking {d.get('ref', d['id'])} has an invalid payment milestone")
+            allocations.append({
+                "booking_id": d["id"], "schedule_id": schedule["id"],
+                "milestone_index": next_idx, "milestone": milestone.get("milestone"),
+                "label": milestone.get("label"), "amount": due,
+            })
+
         cfg = await _active_env(db)
-        total = round(sum(float((d.get("pricing") or {}).get("token_amount", 0) or 0) for d in docs), 2)
+        total = round(sum(a["amount"] for a in allocations), 2)
         amount = normalise_amount(total)
         txnid = _new_txnid()
         payment_id = new_id()
@@ -627,6 +665,7 @@ def make_easebuzz_router(*, db, get_current_user, admin_only, new_id, utcnow,
             "payment_url": payment_url,
             "created_at": _now(),
             "batch": len(body.booking_ids) > 1,
+            "milestone_allocations": allocations,
         }
         await db.payments.insert_one(pay_doc)
 

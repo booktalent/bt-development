@@ -153,6 +153,48 @@ async def _create_or_get_schedule(db, booking: Dict[str, Any]) -> Dict[str, Any]
     return doc
 
 
+async def sync_booking_settlement(db, booking_id: str) -> Dict[str, Any]:
+    """Accrue the service-artist split from customer payments actually received.
+
+    This is a ledger reconciliation, not an artist payout.  Payout release is
+    tracked independently, so BookTalent's commission is auditable even while
+    an artist payout is still pending.
+    """
+    booking = await db.bookings.find_one({"id": booking_id}) or {}
+    schedule = await db.payment_schedules.find_one({"booking_id": booking_id}) or {}
+    pricing = booking.get("pricing") or {}
+    total = float(schedule.get("total") or pricing.get("total") or 0)
+    received = float(schedule.get("amount_received") or 0)
+    commission_total = float(pricing.get("booktalent_commission") or 0)
+    artist_payable_total = float(pricing.get("artist_payable") or 0)
+    share = min(1.0, received / total) if total > 0 else 0.0
+    commission_credited = round(commission_total * share, 2)
+    artist_payable_accrued = round(artist_payable_total * share, 2)
+    settlement = {
+        "customer_amount_received": round(received, 2),
+        "customer_amount_due": round(max(0.0, total - received), 2),
+        "booktalent_commission_total": round(commission_total, 2),
+        "booktalent_commission_credited": commission_credited,
+        "artist_payable_total": round(artist_payable_total, 2),
+        "artist_payable_accrued": artist_payable_accrued,
+        "artist_payable_remaining": round(max(0.0, artist_payable_total - artist_payable_accrued), 2),
+        "commission_status": "fully_credited" if share >= 1 else ("partially_credited" if received else "not_credited"),
+        "updated_at": utcnow(),
+    }
+    await db.payment_schedules.update_one({"booking_id": booking_id}, {"$set": {"settlement": settlement}})
+    await db.bookings.update_one(
+        {"id": booking_id},
+        {"$set": {
+            "amount_paid": round(received, 2),
+            "pricing.booktalent_commission_credited": commission_credited,
+            "pricing.artist_payable_accrued": artist_payable_accrued,
+            "pricing.artist_payable_remaining": settlement["artist_payable_remaining"],
+            "pricing.commission_status": settlement["commission_status"],
+        }},
+    )
+    return settlement
+
+
 async def _milestone_reminder_tick(db: AsyncIOMotorDatabase) -> None:
     """Sec 35 — Runs periodically. Sends payment_due / reminder / overdue
     notifications based on how far the milestone's due_date is from today.
@@ -486,6 +528,7 @@ def make_crm_pay_router(db: AsyncIOMotorDatabase, get_current_user, require_admi
                        "amount_received": new_received,
                        "updated_at": utcnow()}}
         )
+        await sync_booking_settlement(db, booking_id)
         await record_audit(db, actor=user, action="milestone.paid",
                            entity="payment_schedule", entity_id=sched["id"],
                            old_value=old_status, new_value="paid",

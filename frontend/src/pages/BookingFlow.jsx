@@ -42,6 +42,7 @@ export default function BookingFlow() {
   const [packages, setPackages] = useState([]);
   const [artistAddons, setArtistAddons] = useState([]); // Sprint 3
   const [platformSettings, setPlatformSettings] = useState({});  // Outstation policy strings
+  const [paymentSettings, setPaymentSettings] = useState({});
   const [busy, setBusy] = useState(false);
   // Iter 73 — Persist multi-step booking state to sessionStorage so:
   //   (a) hitting Back inside the flow never loses previously entered data,
@@ -146,6 +147,8 @@ export default function BookingFlow() {
     }).catch(() => setArtistAddons([]));
     // Outstation policy strings — admin-editable via /admin/settings
     api.get("/settings/public").then((r) => setPlatformSettings(r.data || {})).catch(() => {});
+    // The payment summary must use the same schedule that checkout enforces.
+    api.get("/platform-settings/public").then((r) => setPaymentSettings(r.data || {})).catch(() => {});
     // Iter 61 — Admin-configurable active payment gateway (Easebuzz only).
     api.get("/payment-gateway/public").then((r) => setGatewayInfo(r.data)).catch(() => {});
     // Iter 83 — Fetch canonical price quote from backend so the summary
@@ -341,12 +344,26 @@ export default function BookingFlow() {
   const gstPercent = quoteMeta?.gst_percent ?? 18;
   const feePercent = quoteMeta?.platform_fee_percent ?? 5;
   const gstVisible = quoteMeta ? !!quoteMeta.gst_visible : true;
-  // The gateway collects the full booking total. The BookTalent fee is shown
-  // separately because the artist fee remains a settlement-side amount.
-  const booktalentAmount = platformFeeNet + gst;
+  // The first checkout collects the currently due schedule installment.
   const total = quoteMeta?.total ?? (platformFeeNet + gst);
-  const token = total;                                   // legacy alias
-  const subtotal = artistFee;                            // legacy alias for display blocks
+  const paymentSchedule = paymentSettings.payment_schedule || [];
+  const bookingAdvance = paymentSchedule.find((row) => row.offset_days == null) || paymentSchedule[0];
+  let paymentDuePercent = Number(bookingAdvance?.percent ?? 30);
+  const eventAt = form.event_date ? new Date(form.event_date) : null;
+  const hoursToEvent = eventAt && !Number.isNaN(eventAt.valueOf())
+    ? (eventAt.valueOf() - Date.now()) / 3600000 : null;
+  const instantRules = paymentSettings.instant_book_rules || {};
+  if (hoursToEvent != null && hoursToEvent <= Number(instantRules.very_short_window_hours ?? 48)) {
+    paymentDuePercent = Number(instantRules.very_short_window_min_pct ?? 100);
+  } else if (hoursToEvent != null && hoursToEvent <= Number(instantRules.standard_window_days ?? 7) * 24) {
+    const postEventPercent = paymentSchedule
+      .filter((row) => Number(row.offset_days || 0) > 0)
+      .reduce((sum, row) => sum + Number(row.percent || 0), 0);
+    paymentDuePercent = Math.max(100 - postEventPercent, Number(instantRules.short_window_min_before_event_pct ?? 90));
+  }
+  const bookingTotal = isMultiEvent ? Number(cartPricing.token_amount || 0) : total;
+  const paymentDue = Math.round(bookingTotal * paymentDuePercent) / 100;
+  const remainingAfterAdvance = Math.max(0, bookingTotal - paymentDue);
 
   // Re-fetch canonical quote when pricing inputs change so the summary
   // stays perfectly in sync with what the server will actually charge.
@@ -847,8 +864,7 @@ export default function BookingFlow() {
                 setPaymentMethod={setPaymentMethod}
                 gatewayInfo={gatewayInfo}
                 busy={busy}
-                token={token}
-                cartPricing={cartPricing}
+                paymentDue={paymentDue}
                 isMultiEvent={isMultiEvent}
                 cartItems={cartItems}
                 onBack={() => setStep(4)}
@@ -1039,15 +1055,11 @@ export default function BookingFlow() {
                   <span className="fw-700 font-serif fs-16">Total</span>
                   <span className="fw-700 text-gold font-serif fs-20">{fmtINRFull(artistFee + platformFeeNet + gst)}</span>
                 </div>
-                <div className="flex justify-between mb-12">
-                  <span className="fw-700">Amount Payable to BookTalent</span>
-                  <span className="fw-700 text-gold font-serif fs-18" data-testid="bt-amount">{fmtINRFull(booktalentAmount)}</span>
-                </div>
                 <div style={{ background: "var(--gold-dim)", padding: 14, borderRadius: 10 }}>
-                  <div className="text-muted fs-11 mb-4">🔐 Pay Now to BookTalent</div>
-                  <div className="font-serif fs-20 fw-700 text-gold" data-testid="token-amount">{fmtINRFull(total)}</div>
+                  <div className="text-muted fs-11 mb-4">🔐 Booking Advance ({paymentDuePercent}%)</div>
+                  <div className="font-serif fs-20 fw-700 text-gold" data-testid="token-amount">{fmtINRFull(paymentDue)}</div>
                   <div className="text-muted fs-11 mt-8" style={{ marginTop: 8, lineHeight: 1.4 }}>
-                    ℹ️ Remaining Artist Performance Fee of <b>{fmtINRFull(artistFee)}</b> will be settled directly between the Customer and the Artist as per the signed agreement.
+                    ℹ️ Remaining scheduled amount: <b>{fmtINRFull(remainingAfterAdvance)}</b>. It will be collected according to the payment timeline.
                   </div>
                 </div>
 

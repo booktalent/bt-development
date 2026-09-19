@@ -89,6 +89,18 @@ export function PaymentTimeline({ bookingId, canEdit = false }) {
       <div className="progress-bar mb-16" style={{ height: 6, background: "rgba(255,255,255,0.08)", borderRadius: 3, overflow: "hidden" }}>
         <div style={{ width: `${pct}%`, height: "100%", background: "linear-gradient(90deg, #D4AF37, #F1D17A)" }} />
       </div>
+      {schedule.settlement?.booktalent_commission_total > 0 && (
+        <div className="card card-pad mb-16" style={{ padding: 12, background: "rgba(212,175,55,0.06)" }} data-testid="commission-settlement">
+          <div className="flex-between fs-13">
+            <span>BookTalent commission credited</span>
+            <strong className="text-gold">₹{money(schedule.settlement.booktalent_commission_credited)} / ₹{money(schedule.settlement.booktalent_commission_total)}</strong>
+          </div>
+          <div className="flex-between fs-12 text-muted mt-4">
+            <span>Artist payable accrued</span>
+            <span>₹{money(schedule.settlement.artist_payable_accrued)} · Remaining ₹{money(schedule.settlement.artist_payable_remaining)}</span>
+          </div>
+        </div>
+      )}
       <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
         {(schedule.milestones || []).map((m, i) => (
           <li key={i} className="mb-12" data-testid={`milestone-${i}`}>

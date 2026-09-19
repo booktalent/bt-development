@@ -14,14 +14,12 @@ import { fmtINRFull } from "../../lib/api";
 export default function PaymentStep({
   gatewayInfo,
   busy,
-  token,
-  cartPricing,
+  paymentDue,
   isMultiEvent,
   cartItems,
   onBack,
   onSubmit,
 }) {
-  const amount = isMultiEvent ? cartPricing.token_amount : token;
   const isEasebuzz = gatewayInfo?.enabled && gatewayInfo?.provider === "easebuzz";
   const easebuzzSandbox = isEasebuzz && gatewayInfo?.environment === "sandbox";
 
@@ -43,7 +41,7 @@ export default function PaymentStep({
     <div className="card card-pad" data-testid="step-5">
       <h2 className="font-serif fs-20 fw-700 mb-8">Secure Payment</h2>
       <p className="text-muted fs-13 mb-20">
-        Pay the full booking total to confirm{isMultiEvent ? ` · ${cartItems.length} artists in this event` : ""}.
+        Pay the booking advance now to confirm{isMultiEvent ? ` · ${cartItems.length} artists in this event` : ""}. The remaining installments follow the payment timeline.
       </p>
 
       <div style={{
@@ -79,7 +77,7 @@ export default function PaymentStep({
         <button className="btn btn-gold btn-lg" disabled={busy} onClick={onSubmit} data-testid="pay-now-btn">
           {busy
             ? "Redirecting to Easebuzz…"
-            : `🔐 Continue to Pay ${fmtINRFull(amount)}${isMultiEvent ? ` · ${cartItems.length} artists` : ""}`}
+            : `🔐 Continue to Pay ${fmtINRFull(paymentDue)} Advance${isMultiEvent ? ` · ${cartItems.length} artists` : ""}`}
         </button>
       </div>
     </div>
