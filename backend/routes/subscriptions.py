@@ -23,7 +23,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Callable, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 # ── Pydantic bodies (module scope so FastAPI can resolve annotations) ──────
@@ -40,7 +40,7 @@ class AdminSubCreateBody(BaseModel):
     artist_id: str
     plan: str
     billing_cycle: str = "monthly"
-    duration_days: Optional[int] = None
+    duration_days: Optional[int] = Field(None, ge=0)
     transaction_id: Optional[str] = None
     note: Optional[str] = None
 

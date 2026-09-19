@@ -380,7 +380,7 @@ export default function Search() {
                 <option value="female">Female</option>
                 <option value="other">Other</option>
               </select>
-              <input className="field-input" type="number" placeholder="Min price ₹" value={minPrice} onChange={(e) => setMinPrice(e.target.value)} data-testid="filter-min-price" />
+              <input className="field-input" type="number" min="0" placeholder="Min price ₹" value={minPrice} onChange={(e) => setMinPrice(e.target.value)} data-testid="filter-min-price" />
               <div className="flex gap-8 items-center" style={{ gridColumn: "span 2", flexWrap: "wrap" }}>
                 <label className="flex items-center gap-4 fs-12"><input type="checkbox" checked={featuredOnly} onChange={(e) => setFeaturedOnly(e.target.checked)} data-testid="filter-featured" /> Featured</label>
                 <label className="flex items-center gap-4 fs-12"><input type="checkbox" checked={verifiedOnly} onChange={(e) => setVerifiedOnly(e.target.checked)} data-testid="filter-verified" /> Verified KYC</label>

@@ -640,7 +640,7 @@ export function CreateBookingOnBehalfModal({ onClose, toast }) {
               value={form.venue_address} onChange={(e) => setForm({ ...form, venue_address: e.target.value })} data-testid="mgr-book-addr" />
             <input className="input mt-8" placeholder="City *"
               value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} data-testid="mgr-book-city" />
-            <input type="number" className="input mt-8" placeholder="Package Fee (₹)"
+            <input type="number" min="0" className="input mt-8" placeholder="Package Fee (₹)"
               value={form.package_fee} onChange={(e) => setForm({ ...form, package_fee: e.target.value })} data-testid="mgr-book-fee" />
             <textarea className="input mt-8" placeholder="Notes" rows={2}
               value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} data-testid="mgr-book-notes" />

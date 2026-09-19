@@ -79,7 +79,7 @@ class OfflineArtistIn(BaseModel):
     category: Optional[str] = None
     phone: Optional[str] = None
     email: Optional[str] = None
-    base_price: Optional[float] = 0
+    base_price: Optional[float] = Field(0, ge=0)
     city: Optional[str] = None
     notes: Optional[str] = None
     tags: List[str] = Field(default_factory=list)
@@ -108,7 +108,7 @@ class EventArtistLine(BaseModel):
     artist_id: str            # offline_artist.id OR linked BT artist_id
     is_offline: bool = True   # False = pulled from BT roster
     name: str
-    price: float = 0
+    price: float = Field(0, ge=0)
     role: Optional[str] = None  # "lead", "backup", "sound", etc.
     status: str = "assigned"   # assigned|confirmed|cancelled
 
@@ -124,7 +124,7 @@ class EventIn(BaseModel):
     event_type: Optional[str] = None
     artists: List[EventArtistLine] = Field(default_factory=list)
     addons: List[dict] = Field(default_factory=list)
-    quotation_amount: Optional[float] = 0
+    quotation_amount: Optional[float] = Field(0, ge=0)
     checklist: List[dict] = Field(default_factory=list)  # [{text, done}]
     docs: List[dict] = Field(default_factory=list)       # [{name, url}]
     payment_status: str = "unpaid"                       # unpaid|partial|paid
@@ -142,14 +142,14 @@ class InvoiceIn(BaseModel):
     client_id: str
     event_id: Optional[str] = None
     line_items: List[dict]  # [{desc, qty, unit_price, amount}]
-    tax_pct: float = 18.0
+    tax_pct: float = Field(18.0, ge=0, le=100)
     due_date: Optional[str] = None
     notes: Optional[str] = None
 
 
 class ExpenseIn(BaseModel):
     category: str
-    amount: float
+    amount: float = Field(ge=0)
     date: str
     notes: Optional[str] = None
     receipt_url: Optional[str] = None

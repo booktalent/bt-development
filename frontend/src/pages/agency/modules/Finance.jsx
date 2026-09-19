@@ -18,9 +18,9 @@ function LineItemsEditor({ lines, setLines }) {
         <div key={i} style={{ display: "grid", gridTemplateColumns: "3fr 1fr 1fr 1fr 30px", gap: 6, marginBottom: 6 }}>
           <input placeholder="Description" value={li.desc} onChange={(e) => patch(i, "desc", e.target.value)}
             style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", padding: 8, color: "#fff", borderRadius: 6 }} />
-          <input type="number" value={li.qty} onChange={(e) => patch(i, "qty", e.target.value)}
+          <input type="number" min="0" value={li.qty} onChange={(e) => patch(i, "qty", e.target.value)}
             style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", padding: 8, color: "#fff", borderRadius: 6 }} />
-          <input type="number" placeholder="Unit ₹" value={li.unit_price} onChange={(e) => patch(i, "unit_price", e.target.value)}
+          <input type="number" min="0" placeholder="Unit ₹" value={li.unit_price} onChange={(e) => patch(i, "unit_price", e.target.value)}
             style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", padding: 8, color: "#fff", borderRadius: 6 }} />
           <input readOnly value={li.amount} style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", padding: 8, color: "#f6d366", borderRadius: 6 }} />
           <button onClick={() => remove(i)} style={{ background: "none", border: "1px solid rgba(255,120,120,0.3)", color: "#ff8888", borderRadius: 6, cursor: "pointer" }}>×</button>
@@ -119,7 +119,7 @@ export default function Finance() {
           <div className="ag-card" style={{ marginBottom: 12 }}>
             <div className="ag-form-grid">
               <label>Category<input value={expForm.category} onChange={(e) => setExpForm({ ...expForm, category: e.target.value })} placeholder="Travel, Studio, …" /></label>
-              <label>Amount ₹<input type="number" value={expForm.amount} onChange={(e) => setExpForm({ ...expForm, amount: e.target.value })} /></label>
+              <label>Amount ₹<input type="number" min="0" value={expForm.amount} onChange={(e) => setExpForm({ ...expForm, amount: e.target.value })} /></label>
               <label>Date<input type="date" value={expForm.date} onChange={(e) => setExpForm({ ...expForm, date: e.target.value })} /></label>
               <label>Notes<input value={expForm.notes} onChange={(e) => setExpForm({ ...expForm, notes: e.target.value })} /></label>
               <label style={{ justifyContent: "flex-end" }}><span>&nbsp;</span><button className="btn btn-gold btn-sm" onClick={addExp}>Log expense</button></label>
@@ -223,7 +223,7 @@ export default function Finance() {
                 </select>
               </label>
               <label>Due date<input type="date" value={invForm.due_date} onChange={(e) => setInvForm({ ...invForm, due_date: e.target.value })} /></label>
-              <label>Tax %<input type="number" value={invForm.tax_pct} onChange={(e) => setInvForm({ ...invForm, tax_pct: e.target.value })} /></label>
+              <label>Tax %<input type="number" min="0" value={invForm.tax_pct} onChange={(e) => setInvForm({ ...invForm, tax_pct: e.target.value })} /></label>
             </div>
             <div style={{ marginTop: 14 }}>
               <div className="fs-11 text-muted" style={{ letterSpacing: ".14em", textTransform: "uppercase", marginBottom: 8 }}>Line Items</div>

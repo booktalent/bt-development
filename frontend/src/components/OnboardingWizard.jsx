@@ -266,7 +266,7 @@ export default function OnboardingWizard({ user, onComplete, onClose }) {
                 </div>
                 <div className="field">
                   <div className="field-label">Years of Experience</div>
-                  <input type="number" className="field-input" value={branding.experience_years} onChange={(e) => setBranding({ ...branding, experience_years: e.target.value })} data-testid="wiz-exp" />
+                  <input type="number" min="0" className="field-input" value={branding.experience_years} onChange={(e) => setBranding({ ...branding, experience_years: e.target.value })} data-testid="wiz-exp" />
                 </div>
               </div>
               <div className="flex gap-12">
@@ -308,7 +308,7 @@ export default function OnboardingWizard({ user, onComplete, onClose }) {
               <div className="field-row">
                 <div className="field">
                   <div className="field-label">Price (₹)</div>
-                  <input type="number" className="field-input" value={pkg.price} onChange={(e) => setPkg({ ...pkg, price: e.target.value })} data-testid="wiz-pkg-price" />
+                  <input type="number" min="0" className="field-input" value={pkg.price} onChange={(e) => setPkg({ ...pkg, price: e.target.value })} data-testid="wiz-pkg-price" />
                 </div>
                 <div className="field">
                   <div className="field-label">Duration</div>

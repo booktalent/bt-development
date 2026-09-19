@@ -47,7 +47,7 @@ class MasterItem(BaseModel):
     name: str
     slug: Optional[str] = None
     icon: Optional[str] = None
-    sort_order: int = 0
+    sort_order: int = Field(0, ge=0)
     active: bool = True
     # Iter 41 — Featured banner on category / city SEO landing pages
     hero_image: Optional[str] = None
@@ -61,7 +61,7 @@ class FAQItem(BaseModel):
     question: str
     answer: str
     category: str = "general"
-    sort_order: int = 0
+    sort_order: int = Field(0, ge=0)
     active: bool = True
 
 
@@ -97,9 +97,9 @@ class BoostPackageBody(BaseModel):
     name: str
     type: Literal["featured_artist", "homepage_banner", "category_top", "search_priority", "premium_badge", "verified_badge", "city_featured", "trending", "recommended"]
     duration_days: int = Field(ge=1, le=400)
-    price: float
-    gst_pct: float = 18.0
-    commission_pct: float = 0.0
+    price: float = Field(ge=0)
+    gst_pct: float = Field(18.0, ge=0, le=100)
+    commission_pct: float = Field(0.0, ge=0, le=100)
     description: str = ""
     active: bool = True
 

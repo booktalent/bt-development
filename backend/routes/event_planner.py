@@ -29,9 +29,9 @@ router = APIRouter(prefix="/event-planner", tags=["event-planner"])
 # ─────────────────────────────────────────────────────────────────────────────
 class EventBrief(BaseModel):
     event_type: str = Field(..., description="Wedding, Sangeet, Corporate, Birthday, etc.")
-    guests: Optional[int] = Field(None, description="Approximate guest count")
-    budget_min: Optional[int] = Field(None, description="Total budget in INR (lower bound)")
-    budget_max: Optional[int] = Field(None, description="Total budget in INR (upper bound)")
+    guests: Optional[int] = Field(None, ge=0, description="Approximate guest count")
+    budget_min: Optional[int] = Field(None, ge=0, description="Total budget in INR (lower bound)")
+    budget_max: Optional[int] = Field(None, ge=0, description="Total budget in INR (upper bound)")
     city: Optional[str] = None
     event_date: Optional[str] = None
     notes: Optional[str] = Field(None, max_length=400, description="Free-text vibe / theme")

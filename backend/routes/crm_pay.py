@@ -55,10 +55,10 @@ class LeadCreate(BaseModel):
     city: Optional[str] = None
     event_type: Optional[str] = None
     event_date: Optional[str] = None
-    number_of_days: int = 1
+    number_of_days: int = Field(1, ge=1)
     venue: Optional[str] = None
     venue_address: Optional[str] = None
-    budget: Optional[float] = None
+    budget: Optional[float] = Field(None, ge=0)
     requirements: Optional[str] = None
     lead_source: Optional[str] = "manual"
     assigned_manager_id: Optional[str] = None

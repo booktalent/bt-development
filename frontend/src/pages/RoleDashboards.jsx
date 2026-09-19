@@ -117,7 +117,7 @@ export function CorporateDashboard() {
                       <input className="field-input" placeholder="PO Number" value={r.po_number} onChange={(e) => updateRow(i, "po_number", e.target.value)} data-testid={`bulk-po-${i}`} />
                     </div>
                     <div className="flex gap-8 mt-8">
-                      <input type="number" className="field-input" style={{ maxWidth: 120 }} placeholder="Headcount" value={r.headcount} onChange={(e) => updateRow(i, "headcount", Number(e.target.value))} />
+                      <input type="number" min="0" className="field-input" style={{ maxWidth: 120 }} placeholder="Headcount" value={r.headcount} onChange={(e) => updateRow(i, "headcount", Number(e.target.value))} />
                       {rows.length > 1 && <button className="btn btn-red btn-xs" onClick={() => removeRow(i)}>Remove</button>}
                     </div>
                   </div>

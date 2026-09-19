@@ -576,6 +576,7 @@ function KycApproveModal({ artist, onCancel, onConfirm }) {
             <div className="field-label mb-4">BookTalent Commission (%)</div>
             <input
               type="number"
+              min="0"
               min={1}
               max={50}
               step={0.5}
@@ -730,14 +731,14 @@ function AdminCoupons({ toast }) {
                   <option value="percent">Percent</option><option value="flat">Flat ₹</option>
                 </select>
               </div>
-              <div className="field"><div className="field-label">Value</div><input type="number" className="field-input" value={form.discount_value} onChange={(e) => setForm({...form, discount_value: Number(e.target.value)})} data-testid="coupon-value" /></div>
+              <div className="field"><div className="field-label">Value</div><input type="number" min="0" className="field-input" value={form.discount_value} onChange={(e) => setForm({...form, discount_value: Number(e.target.value)})} data-testid="coupon-value" /></div>
             </div>
             <div className="field-row">
-              <div className="field"><div className="field-label">Max Uses (total)</div><input type="number" className="field-input" value={form.max_uses} onChange={(e) => setForm({...form, max_uses: Number(e.target.value)})} /></div>
-              <div className="field"><div className="field-label">Per User Limit</div><input type="number" className="field-input" value={form.per_user_limit} onChange={(e) => setForm({...form, per_user_limit: Number(e.target.value)})} /></div>
+              <div className="field"><div className="field-label">Max Uses (total)</div><input type="number" min="0" className="field-input" value={form.max_uses} onChange={(e) => setForm({...form, max_uses: Number(e.target.value)})} /></div>
+              <div className="field"><div className="field-label">Per User Limit</div><input type="number" min="1" className="field-input" value={form.per_user_limit} onChange={(e) => setForm({...form, per_user_limit: Number(e.target.value)})} /></div>
             </div>
             <div className="field-row">
-              <div className="field"><div className="field-label">Min Order ₹</div><input type="number" className="field-input" value={form.min_order} onChange={(e) => setForm({...form, min_order: Number(e.target.value)})} /></div>
+              <div className="field"><div className="field-label">Min Order ₹</div><input type="number" min="0" className="field-input" value={form.min_order} onChange={(e) => setForm({...form, min_order: Number(e.target.value)})} /></div>
               <div className="field"><div className="field-label">Expires</div><input type="date" className="field-input" value={form.expires_at} onChange={(e) => setForm({...form, expires_at: e.target.value})} /></div>
             </div>
             <div className="field"><div className="field-label">Applies To</div>
@@ -1024,7 +1025,7 @@ function UserEditModal({ user, profile, onClose, onSaved, toast }) {
               </div>
               <div>
                 <div className="field-label">Starting price (₹)</div>
-                <input type="number" className="field-input" value={form.starting_price} onChange={(e) => setForm({ ...form, starting_price: parseFloat(e.target.value) || 0 })} data-testid="edit-starting-price" />
+                <input type="number" min="0" className="field-input" value={form.starting_price} onChange={(e) => setForm({ ...form, starting_price: parseFloat(e.target.value) || 0 })} data-testid="edit-starting-price" />
               </div>
             </div>
             <div className="field">
@@ -1680,6 +1681,7 @@ function AdminBulkPayouts({ toast }) {
               <td>
                 <input
                   type="number"
+                  min="0"
                   className="input"
                   style={{ width: 110 }}
                   placeholder={String(r.outstanding)}

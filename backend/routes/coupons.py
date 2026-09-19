@@ -3,18 +3,18 @@ from __future__ import annotations
 from typing import Callable, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class CouponBody(BaseModel):
     code: str
     description: str = ""
     discount_type: Literal["percent", "flat"]
-    discount_value: float
-    max_uses: int = 1000
-    per_user_limit: int = 1
+    discount_value: float = Field(ge=0)
+    max_uses: int = Field(1000, ge=0)
+    per_user_limit: int = Field(1, ge=1)
     expires_at: str          # YYYY-MM-DD
-    min_order: float = 0
+    min_order: float = Field(0, ge=0)
     applies_to: str = "all"  # all/wedding/corporate/category-slug
     active: bool = True
 

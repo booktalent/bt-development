@@ -397,7 +397,7 @@ function OfflineArtists() {
           <label>Phone<input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></label>
           <label>Email<input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></label>
           <label>City<input value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} /></label>
-          <label>Base price (₹)<input type="number" value={form.base_price} onChange={(e) => setForm({ ...form, base_price: e.target.value })} /></label>
+          <label>Base price (₹)<input type="number" min="0" value={form.base_price} onChange={(e) => setForm({ ...form, base_price: e.target.value })} /></label>
           <label style={{ justifyContent: "flex-end" }}><span>&nbsp;</span>
             <button className="btn btn-gold btn-sm" disabled={busy} onClick={create} data-testid="ag-off-create">Add Artist</button>
           </label>

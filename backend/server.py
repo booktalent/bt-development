@@ -169,6 +169,38 @@ def booking_ref() -> str:
     return "BT-" + datetime.now().strftime("%y%m%d") + "-" + uuid.uuid4().hex[:6].upper()
 
 
+async def _install_numeric_guards() -> None:
+    """Normalize legacy negative values and reject new negative writes in Mongo."""
+    guards = {
+        "artist_profiles": {"experience_years", "notice_period_days", "profile_views", "events_done", "followers", "percentage_deal"},
+        "packages": {"price", "team_size", "arrival_buffer_days"},
+        "bookings": {"number_of_days", "customer_travel_allowance", "amount_paid"},
+        "artist_addons": {"price", "max_quantity", "gst_pct"},
+        "availability": {"premium_multiplier"},
+        "coupons": {"discount_value", "max_uses", "per_user_limit", "min_order"},
+    }
+    for collection, fields in guards.items():
+        for field in fields:
+            await db[collection].update_many(
+                {field: {"$lt": 0}}, {"$set": {field: 0}},
+            )
+        try:
+            await db.command({
+                "collMod": collection,
+                "validator": {"$jsonSchema": {
+                    "bsonType": "object",
+                    "properties": {
+                        field: {"bsonType": ["int", "long", "double", "decimal"], "minimum": 0}
+                        for field in fields
+                    },
+                }},
+                "validationLevel": "moderate",
+                "validationAction": "error",
+            })
+        except Exception as exc:
+            log.warning("Numeric Mongo validator unavailable for %s: %s", collection, exc)
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Auth dependency
 # ─────────────────────────────────────────────────────────────────────────────
@@ -406,8 +438,8 @@ class UpdateProfileBody(BaseModel):
     genres: Optional[List[str]] = None
     event_types: Optional[List[str]] = None
     travel_range: Optional[str] = None
-    notice_period_days: Optional[int] = None
-    experience_years: Optional[int] = None
+    notice_period_days: Optional[int] = Field(None, ge=0)
+    experience_years: Optional[int] = Field(None, ge=0)
     category: Optional[str] = None
     subcategories: Optional[List[str]] = None
     socials: Optional[Dict[str, str]] = None
@@ -422,7 +454,7 @@ class UpdateProfileBody(BaseModel):
     instagram_url: Optional[str] = None
     spotify_url: Optional[str] = None
     onboarding_completed: Optional[bool] = None
-    onboarding_step: Optional[int] = None
+    onboarding_step: Optional[int] = Field(None, ge=0)
     # customer specific
     company_name: Optional[str] = None
 
@@ -430,7 +462,7 @@ class UpdateProfileBody(BaseModel):
 class PackageBody(BaseModel):
     name: str
     description: str = ""
-    price: float
+    price: float = Field(ge=0)
     duration: str = ""
     features: List[str] = []
     is_popular: bool = False
@@ -439,8 +471,8 @@ class PackageBody(BaseModel):
     accommodation_required: bool = False
     hotel_category: Optional[str] = None            # e.g. "3-star", "4-star", "5-star"
     flight_class: Optional[str] = None              # e.g. "economy", "premium-economy", "business"
-    team_size: Optional[int] = None                 # number of people to accommodate
-    arrival_buffer_days: Optional[int] = None       # days needed before event
+    team_size: Optional[int] = Field(None, ge=0)   # number of people to accommodate
+    arrival_buffer_days: Optional[int] = Field(None, ge=0) # days needed before event
     local_transport_required: bool = False
     meals_required: bool = False
     travel_notes: str = ""                          # free-form additional rider notes
@@ -463,13 +495,13 @@ class AvailabilityBody(BaseModel):
     status: Literal["available", "blocked", "booked", "premium"]
     # For status == "premium" — a multiplier applied to the artist's base package
     # price on this date (e.g. 1.5 for weekend rate, 2.0 for festival dates).
-    premium_multiplier: Optional[float] = None
+    premium_multiplier: Optional[float] = Field(None, ge=0)
     premium_label: Optional[str] = None  # e.g. "Weekend", "Diwali", "New Year"
 
 
 class AddonSelection(BaseModel):
     addon_id: str
-    quantity: int = 1
+    quantity: int = Field(1, ge=1)
 
 
 class BookingCreate(BaseModel):
@@ -508,7 +540,7 @@ class BookingCreate(BaseModel):
     # Iter 52.5 — Optional travel allowance the customer commits to pay the
     # artist direct-to-artist. Snapshotted to booking + contract PDF. The
     # platform never handles this money — it exists for auditability only.
-    customer_travel_allowance: Optional[float] = 0
+    customer_travel_allowance: Optional[float] = Field(0, ge=0)
     # Iter 52.5 — Terms & Conditions declaration checkbox from the Review step.
     # We reject the booking if this is False so the acceptance is captured
     # in-flow (audit trail).
@@ -561,11 +593,11 @@ class CouponBody(BaseModel):
     code: str
     description: str = ""
     discount_type: Literal["percent", "flat"]
-    discount_value: float
-    max_uses: int = 1000
-    per_user_limit: int = 1
+    discount_value: float = Field(ge=0)
+    max_uses: int = Field(1000, ge=0)
+    per_user_limit: int = Field(1, ge=1)
     expires_at: str  # YYYY-MM-DD
-    min_order: float = 0
+    min_order: float = Field(0, ge=0)
     applies_to: str = "all"  # all/wedding/corporate/category-slug
     active: bool = True
 
@@ -616,7 +648,7 @@ class DisputeBody(BaseModel):
 
 class DisputeResolveBody(BaseModel):
     decision: Literal["refund", "release", "partial"]
-    amount: Optional[float] = None
+    amount: Optional[float] = Field(None, ge=0)
     note: Optional[str] = None
 
 
@@ -4222,6 +4254,7 @@ async def my_analytics(user: dict = Depends(get_current_user)):
 # ─────────────────────────────────────────────────────────────────────────────
 @app.on_event("startup")
 async def startup():
+    await _install_numeric_guards()
     # indexes
     await db.users.create_index("email", unique=True)
     await db.users.create_index("id", unique=True)

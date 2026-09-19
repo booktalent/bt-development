@@ -130,7 +130,7 @@ export default function AdminPlatformSettings() {
                   set("payment_schedule", arr);
                 }}
               />
-              <input className="field-input" type="number" step="1" value={row.percent}
+              <input className="field-input" type="number" min="0" step="1" value={row.percent}
                 onChange={(e) => {
                   const arr = [...state.payment_schedule];
                   arr[idx] = { ...row, percent: parseFloat(e.target.value || 0) };

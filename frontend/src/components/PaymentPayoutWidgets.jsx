@@ -110,7 +110,7 @@ export function PaymentTimeline({ bookingId, canEdit = false }) {
             {markingIdx === i && (
               <div className="card card-pad mt-8" style={{ background: "rgba(212,175,55,0.06)" }}>
                 <div className="grid grid-2 gap-8">
-                  <input className="field-input" type="number" placeholder="Amount received"
+                  <input className="field-input" type="number" min="0" placeholder="Amount received"
                     value={markForm.amount} onChange={(e) => setMarkForm({ ...markForm, amount: e.target.value })}
                     data-testid={`mark-paid-amount-${i}`} />
                   <select className="field-input" value={markForm.method}
@@ -223,7 +223,7 @@ export function PayoutConsole() {
             <div className="grid grid-2 gap-8">
               <div>
                 <label className="field-label">Amount ₹</label>
-                <input className="field-input" type="number" value={form.amount}
+                <input className="field-input" type="number" min="0" value={form.amount}
                   onChange={(e) => setForm({ ...form, amount: e.target.value })}
                   data-testid="payout-amount" />
               </div>

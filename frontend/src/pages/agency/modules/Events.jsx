@@ -70,7 +70,7 @@ export default function Events() {
           <label>Venue<input value={form.venue} onChange={(e) => setForm({ ...form, venue: e.target.value })} /></label>
           <label>City<input value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} /></label>
           <label>Event type<input placeholder="Wedding, Corporate…" value={form.event_type} onChange={(e) => setForm({ ...form, event_type: e.target.value })} /></label>
-          <label>Quotation ₹<input type="number" value={form.quotation_amount} onChange={(e) => setForm({ ...form, quotation_amount: e.target.value })} /></label>
+          <label>Quotation ₹<input type="number" min="0" value={form.quotation_amount} onChange={(e) => setForm({ ...form, quotation_amount: e.target.value })} /></label>
           <label style={{ gridColumn: "1 / -1" }}>Notes<textarea rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></label>
         </div>
 

@@ -287,6 +287,18 @@ class AnswerBody(BaseModel):
     answers: Dict[str, Any]
 
 
+def _validate_numeric_answers(answers: Dict[str, Any], questions: List[Dict[str, Any]]) -> None:
+    numeric_ids = {q.get("id") for q in questions if q.get("type") in ("number", "price")}
+    for key, value in answers.items():
+        if key not in numeric_ids or value in (None, ""):
+            continue
+        try:
+            if float(value) < 0:
+                raise HTTPException(422, f"{key} cannot be negative")
+        except (TypeError, ValueError):
+            raise HTTPException(422, f"{key} must be a number")
+
+
 def make_router(*, get_current_user: Callable, admin_only: Callable, db: Any, clean: Callable, utcnow: Callable, **_: Any) -> APIRouter:
     r = APIRouter()
 
@@ -365,6 +377,10 @@ def make_router(*, get_current_user: Callable, admin_only: Callable, db: Any, cl
         """Artist submits (partial) answers — merged into their profile.answers."""
         if user["role"] != "artist":
             raise HTTPException(403, "Artist only")
+        universal = await get_universal()
+        profile = await db.artist_profiles.find_one({"user_id": user["id"]}) or {}
+        category_questions = await _resolve_category_questions(profile.get("category", ""))
+        _validate_numeric_answers(body.answers, universal + category_questions)
         await db.artist_profiles.update_one(
             {"user_id": user["id"]},
             {"$set": {**{f"answers.{k}": v for k, v in body.answers.items()},

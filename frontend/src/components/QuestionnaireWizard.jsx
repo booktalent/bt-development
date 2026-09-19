@@ -261,7 +261,7 @@ function FieldRenderer({ q, value, onChange }) {
       return (
         <div className="field">
           {label}
-          <input type="number" step={q.step || 1} className="field-input" value={value ?? ""} onChange={(e) => onChange(e.target.value === "" ? "" : Number(e.target.value))} data-testid={`q-${q.id}`} />
+          <input type="number" min="0" step={q.step || 1} className="field-input" value={value ?? ""} onChange={(e) => onChange(e.target.value === "" ? "" : Number(e.target.value))} data-testid={`q-${q.id}`} />
         </div>
       );
     case "price":

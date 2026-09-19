@@ -68,7 +68,7 @@ export function AdminMaster({ toast }) {
         <div className="grid grid-4 gap-12" style={{ marginBottom: 10 }}>
           <input className="input" placeholder="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} data-testid="master-name" />
           <input className="input" placeholder="Icon (emoji)" value={form.icon} onChange={(e) => setForm({ ...form, icon: e.target.value })} data-testid="master-icon" />
-          <input className="input" type="number" placeholder="Sort order" value={form.sort_order} onChange={(e) => setForm({ ...form, sort_order: parseInt(e.target.value) || 0 })} data-testid="master-sort" />
+          <input className="input" type="number" min="0" placeholder="Sort order" value={form.sort_order} onChange={(e) => setForm({ ...form, sort_order: parseInt(e.target.value) || 0 })} data-testid="master-sort" />
           <button className="btn btn-gold" onClick={save} data-testid="master-save">{editing ? "Update" : "+ Add"}</button>
         </div>
         {supportsBanner && (
@@ -173,10 +173,10 @@ export function AdminBoost({ toast }) {
             <select className="input" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} data-testid="boost-pkg-type">
               {["featured_artist", "homepage_banner", "category_top", "search_priority", "premium_badge", "verified_badge", "city_featured", "trending", "recommended"].map((t) => <option key={t} value={t}>{t}</option>)}
             </select>
-            <input className="input" type="number" placeholder="Days" value={form.duration_days} onChange={(e) => setForm({ ...form, duration_days: parseInt(e.target.value) || 0 })} data-testid="boost-pkg-days" />
-            <input className="input" type="number" placeholder="Price ₹" value={form.price} onChange={(e) => setForm({ ...form, price: parseFloat(e.target.value) || 0 })} data-testid="boost-pkg-price" />
-            <input className="input" type="number" placeholder="GST %" value={form.gst_pct} onChange={(e) => setForm({ ...form, gst_pct: parseFloat(e.target.value) || 0 })} />
-            <input className="input" type="number" placeholder="Commission %" value={form.commission_pct} onChange={(e) => setForm({ ...form, commission_pct: parseFloat(e.target.value) || 0 })} />
+            <input className="input" type="number" min="0" placeholder="Days" value={form.duration_days} onChange={(e) => setForm({ ...form, duration_days: parseInt(e.target.value) || 0 })} data-testid="boost-pkg-days" />
+            <input className="input" type="number" min="0" placeholder="Price ₹" value={form.price} onChange={(e) => setForm({ ...form, price: parseFloat(e.target.value) || 0 })} data-testid="boost-pkg-price" />
+            <input className="input" type="number" min="0" placeholder="GST %" value={form.gst_pct} onChange={(e) => setForm({ ...form, gst_pct: parseFloat(e.target.value) || 0 })} />
+            <input className="input" type="number" min="0" placeholder="Commission %" value={form.commission_pct} onChange={(e) => setForm({ ...form, commission_pct: parseFloat(e.target.value) || 0 })} />
             <input className="input" placeholder="Description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
             <button className="btn btn-gold" onClick={save} data-testid="boost-pkg-save">{editing ? "Update" : "+ Add Package"}</button>
           </div>
@@ -319,7 +319,7 @@ export function AdminFAQs({ toast }) {
         <textarea className="input mb-8" placeholder="Answer" value={form.answer} onChange={(e) => setForm({ ...form, answer: e.target.value })} rows={3} data-testid="faq-a" style={{ width: "100%", marginBottom: 8 }} />
         <div className="flex gap-12" style={{ marginBottom: 12, flexWrap: "wrap" }}>
           <input className="input" placeholder="Category (booking, payment, trust…)" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} />
-          <input className="input" type="number" placeholder="Sort" value={form.sort_order} onChange={(e) => setForm({ ...form, sort_order: parseInt(e.target.value) || 0 })} style={{ width: 100 }} />
+          <input className="input" type="number" min="0" placeholder="Sort" value={form.sort_order} onChange={(e) => setForm({ ...form, sort_order: parseInt(e.target.value) || 0 })} style={{ width: 100 }} />
           <label className="flex gap-4" style={{ alignItems: "center", fontSize: 13 }}>
             <input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} data-testid="faq-active" /> Active
           </label>
@@ -393,7 +393,7 @@ export function AdminCMS({ toast }) {
           <label className="flex gap-6" style={{ alignItems: "center", fontSize: 13 }}>
             <input type="checkbox" checked={form.footer_menu} onChange={(e) => setForm({ ...form, footer_menu: e.target.checked })} data-testid="cms-footer-menu" /> Footer menu
           </label>
-          <input className="input" type="number" placeholder="Menu order" value={form.menu_order} onChange={(e) => setForm({ ...form, menu_order: parseInt(e.target.value) || 100 })} style={{ width: 120 }} data-testid="cms-menu-order" />
+          <input className="input" type="number" min="0" placeholder="Menu order" value={form.menu_order} onChange={(e) => setForm({ ...form, menu_order: parseInt(e.target.value) || 100 })} style={{ width: 120 }} data-testid="cms-menu-order" />
           <button className="btn btn-ghost btn-xs" onClick={() => setShowAdvanced(!showAdvanced)} data-testid="cms-toggle-advanced">
             {showAdvanced ? "▲ Hide Banner + SEO" : "▼ Banner + Advanced SEO"}
           </button>

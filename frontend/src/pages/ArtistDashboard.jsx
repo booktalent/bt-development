@@ -1043,7 +1043,7 @@ function PackageModal({ pkg, onSave, onClose }) {
           <input className="field-input" value={p.name} onChange={(e) => setP({ ...p, name: e.target.value })} data-testid="pkg-name" /></div>
         <div className="field-row">
           <div className="field"><div className="field-label">Price (₹)</div>
-            <input className="field-input" type="number" value={p.price} onChange={(e) => setP({ ...p, price: Number(e.target.value) })} data-testid="pkg-price" /></div>
+            <input className="field-input" type="number" min="0" value={p.price} onChange={(e) => setP({ ...p, price: Number(e.target.value) })} data-testid="pkg-price" /></div>
           <div className="field"><div className="field-label">Duration</div>
             <input className="field-input" value={p.duration} onChange={(e) => setP({ ...p, duration: e.target.value })} placeholder="3 hours" data-testid="pkg-duration" /></div>
         </div>

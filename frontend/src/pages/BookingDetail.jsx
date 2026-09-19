@@ -457,6 +457,7 @@ function MutualRefundPanel({ booking, user }) {
           <div className="grid grid-2 gap-8">
             <input
               type="number"
+              min="0"
               className="input"
               placeholder={`Amount (max ₹${money(paid)})`}
               value={amount}

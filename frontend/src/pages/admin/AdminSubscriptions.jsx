@@ -316,7 +316,7 @@ function GrantModal({ plans, onClose, onSaved, toast }) {
             </select>
           </label>
           <label><div className="field-label">Custom duration (days, optional)</div>
-            <input className="field-input" type="number" placeholder="e.g. 60" value={body.duration_days} onChange={(e) => setBody({ ...body, duration_days: e.target.value })} data-testid="grant-days" />
+            <input className="field-input" type="number" min="0" placeholder="e.g. 60" value={body.duration_days} onChange={(e) => setBody({ ...body, duration_days: e.target.value })} data-testid="grant-days" />
           </label>
           <label><div className="field-label">Transaction / reference</div>
             <input className="field-input" value={body.transaction_id} onChange={(e) => setBody({ ...body, transaction_id: e.target.value })} placeholder="Manual grant ref" />
