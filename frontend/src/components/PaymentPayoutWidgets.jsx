@@ -13,6 +13,32 @@ import { useToast } from "../lib/toast";
 
 const money = (n) => new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 }).format(Math.round(n || 0));
 
+function ArtistDetails({ booking, technical = false }) {
+  const profile = booking.artist_profile;
+  const user = booking.artist_user;
+  const name = profile?.stage_name || user?.name || [user?.first_name, user?.last_name].filter(Boolean).join(" ");
+  const category = profile?.category || profile?.genres?.[0] || profile?.subcategories?.[0];
+
+  if (!profile && !user) {
+    return (
+      <div>
+        <div>Artist profile not found</div>
+        {technical && <div className="text-muted fs-11">ID: {booking.artist_id || "—"}</div>}
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="fw-700">{name || "Artist profile not found"}</div>
+      {category && <div className="text-muted fs-12">{category}</div>}
+      {(profile?.email || user?.email) && <div className="text-muted fs-12">{profile?.email || user.email}</div>}
+      {(profile?.phone || user?.phone) && <div className="text-muted fs-12">{profile?.phone || user.phone}</div>}
+      {technical && <div className="text-muted fs-11">ID: {booking.artist_id || "—"}</div>}
+    </div>
+  );
+}
+
 
 // ─── Payment Timeline ─────────────────────────────────────────────
 export function PaymentTimeline({ bookingId, canEdit = false }) {
@@ -161,13 +187,14 @@ export function PayoutConsole() {
       {loading ? "Loading…" : (
         <table className="table w-full" data-testid="pending-payouts-table">
           <thead>
-            <tr><th>Ref</th><th>Artist</th><th>Event</th><th>Payable</th><th></th></tr>
+            <tr><th>Ref</th><th>Artist</th><th>Event</th><th>Date</th><th>Payable</th><th></th></tr>
           </thead>
           <tbody>
             {pending.map((b) => (
               <tr key={b.id} data-testid={`payout-row-${b.id}`}>
                 <td><code className="text-gold">{b.ref}</code></td>
-                <td>{b.artist_id}</td>
+                <td><ArtistDetails booking={b} technical /></td>
+                <td>{b.event_type || b.package_name || "—"}</td>
                 <td>{b.event_date || "—"}</td>
                 <td>₹{money((b.pricing || {}).artist_payable || (b.pricing || {}).artist_fee || 0)}</td>
                 <td>
@@ -179,7 +206,7 @@ export function PayoutConsole() {
               </tr>
             ))}
             {pending.length === 0 && (
-              <tr><td colSpan="5" className="text-muted text-center pad-16">All payouts cleared 🎉</td></tr>
+              <tr><td colSpan="6" className="text-muted text-center pad-16">All payouts cleared 🎉</td></tr>
             )}
           </tbody>
         </table>
@@ -189,6 +216,10 @@ export function PayoutConsole() {
         <div className="modal-backdrop" onClick={() => setPayoutFor(null)}>
           <div className="modal card card-pad" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 520 }}>
             <h3 className="font-serif fw-700 mb-8">Record Payout · {payoutFor.ref}</h3>
+            <div className="mb-16">
+              <div className="field-label">Artist</div>
+              <ArtistDetails booking={payoutFor} />
+            </div>
             <div className="grid grid-2 gap-8">
               <div>
                 <label className="field-label">Amount ₹</label>

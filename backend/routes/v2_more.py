@@ -316,6 +316,33 @@ def make_v2_more_router(db: AsyncIOMotorDatabase, get_current_user, require_admi
             {"_id": 0},
         ).sort("event_date", -1).limit(200)
         rows = [b async for b in cursor]
+
+        artist_ids = list({b.get("artist_id") for b in rows if b.get("artist_id")})
+        profiles = {}
+        users = {}
+        if artist_ids:
+            try:
+                profile_rows = await db.artist_profiles.find(
+                    {"user_id": {"$in": artist_ids}},
+                    {"_id": 0, "user_id": 1, "stage_name": 1, "category": 1,
+                     "subcategories": 1, "genres": 1, "city": 1,
+                     "email": 1, "phone": 1},
+                ).to_list(len(artist_ids))
+                profiles = {profile["user_id"]: profile for profile in profile_rows}
+
+                user_rows = await db.users.find(
+                    {"id": {"$in": artist_ids}},
+                    {"_id": 0, "id": 1, "first_name": 1, "last_name": 1,
+                     "name": 1, "email": 1, "phone": 1},
+                ).to_list(len(artist_ids))
+                users = {user["id"]: user for user in user_rows}
+            except Exception as exc:
+                log.warning("artist details lookup failed for pending payouts: %s", exc)
+
+        for booking in rows:
+            artist_id = booking.get("artist_id")
+            booking["artist_profile"] = profiles.get(artist_id)
+            booking["artist_user"] = users.get(artist_id)
         return {"items": rows, "count": len(rows)}
 
     return r
