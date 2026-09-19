@@ -259,11 +259,16 @@ function AdminArtists({ toast }) {
       <div className="card-head"><div className="card-title">🎤 Artists ({list.length})</div></div>
       <div className="table-wrap">
         <table className="table">
-          <thead><tr><th>Artist</th><th>Category</th><th>City</th><th>Rating</th><th>Events</th><th>Status</th><th>Actions</th></tr></thead>
+          <thead><tr><th>Artist</th><th>Type</th><th>Category</th><th>City</th><th>Rating</th><th>Events</th><th>Status</th><th>Actions</th></tr></thead>
           <tbody>
             {list.map((a) => (
               <tr key={a.id} data-testid={`artist-row-${a.user_id}`}>
                 <td><div className="fw-600">{a.stage_name}</div><div className="text-muted fs-11">{a.user?.email}</div></td>
+                <td>
+                  <span className={`pill ${a.is_service_artist ? "pill-green" : "pill-violet"}`}>
+                    {a.is_service_artist ? "BookTalent Service Artist" : "Normal Artist"}
+                  </span>
+                </td>
                 <td>{a.category}</td>
                 <td>{a.city}</td>
                 <td className="text-gold">★ {a.rating_avg?.toFixed(1)}</td>

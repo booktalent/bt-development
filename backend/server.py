@@ -2939,7 +2939,7 @@ TRAVEL & ACCOMMODATION (borne by Client, in addition to the Artist Fee):
   Artist Performance Fee (paid by Client directly to Artist) : ₹{booking['pricing'].get('artist_fee', booking['pricing'].get('package_fee', 0) + booking['pricing'].get('addons_total', 0)):.2f}
 
   Platform Service Fee (5% — payable to BookTalent)          : ₹{booking['pricing']['platform_fee']:.2f}
-  GST (18% on Platform Fee)                                  : ₹{booking['pricing']['gst']:.2f}
+    GST (18% on Platform Fee)                                  : ₹{booking['pricing'].get('gst_amount', booking['pricing'].get('gst', 0)):.2f}
   AMOUNT PAYABLE TO BOOKTALENT                                : ₹{booking['pricing']['total']:.2f}
 
 FEE INCLUSION NOTE:
@@ -3498,6 +3498,9 @@ async def admin_list_artists(status: Optional[str] = None, _: dict = Depends(req
     out = []
     for p in docs:
         p = clean(p)
+        # Normalize current and legacy deal fields for the admin artist list.
+        p["artist_type"] = p.get("artist_type") or ("service" if p.get("is_service_artist") else "normal")
+        p["is_service_artist"] = p["artist_type"] == "service"
         u = await db.users.find_one({"id": p["user_id"]})
         p["user"] = clean(u) if u else None
         out.append(p)
