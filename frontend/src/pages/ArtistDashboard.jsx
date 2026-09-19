@@ -9,6 +9,29 @@ import OnboardingWizard from "../components/OnboardingWizard";
 import AvailabilityCalendar from "../components/AvailabilityCalendar";
 import QuestionnaireWizard from "../components/QuestionnaireWizard";
 
+// Agreements are protected API files. Fetching through Axios preserves the
+// authenticated cookie in local development as well as production, instead of
+// relying on the frontend dev server to proxy a direct browser navigation.
+async function openMyAgreement() {
+  // Open synchronously so browsers do not block the eventual PDF tab while
+  // the authenticated API request is in flight.
+  const popup = window.open("", "_blank");
+  if (popup) popup.opener = null;
+  try {
+    const response = await api.get("/agreements/mine", { responseType: "blob" });
+    const url = URL.createObjectURL(response.data);
+    if (popup) {
+      popup.location.href = url;
+    } else {
+      window.open(url, "_blank", "noopener,noreferrer");
+    }
+    window.setTimeout(() => URL.revokeObjectURL(url), 60 * 1000);
+  } catch (error) {
+    if (popup) popup.close();
+    throw error;
+  }
+}
+
 /**
  * Media thumbnail with a graceful React-state fallback when the thumb URL 404s
  * or the image decode fails. Replaces the earlier `insertAdjacentHTML` hack
@@ -1997,6 +2020,7 @@ function Boost({ refresh, toast }) {
 
 function KycProgressBar() {
   const [data, setData] = useState(null);
+  const [agreementError, setAgreementError] = useState("");
   useEffect(() => {
     api.get("/kyc/pipeline").then((r) => setData(r.data)).catch(() => setData(null));
   }, []);
@@ -2017,11 +2041,16 @@ function KycProgressBar() {
           </div>
         </div>
         {data.agreement_url && (
-          <a className="btn btn-ghost btn-sm" href={data.agreement_url} target="_blank" rel="noopener noreferrer" data-testid="kyc-agreement-dl">
+          <button className="btn btn-ghost btn-sm" onClick={async () => {
+            setAgreementError("");
+            try { await openMyAgreement(); } catch (e) { setAgreementError(formatApiError(e)); }
+          }} data-testid="kyc-agreement-dl">
             ⬇ Agreement
-          </a>
+          </button>
         )}
       </div>
+
+      {agreementError && <div className="text-red fs-12 mb-8">{agreementError}</div>}
 
       {/* Progress rail */}
       <div style={{ position: "relative", padding: "8px 0" }}>
@@ -2817,11 +2846,15 @@ function TncAgreementGate({ toast, onDone }) {
     if (!checked) { toast("Please tick the checkbox to accept the Terms & Conditions", "error"); return; }
     setBusy(true);
     try {
-      const r = await api.post("/kyc/accept-terms", { accepted: true });
+      await api.post("/kyc/accept-terms", { accepted: true });
       toast("🎉 Terms accepted — your agreement is ready and you're now live!", "success");
       setNeeds(false);
-      if (r.data?.agreement_url) {
-        window.open(r.data.agreement_url, "_blank", "noopener,noreferrer");
+      try {
+        await openMyAgreement();
+      } catch (agreementError) {
+        // Acceptance has already succeeded; keep the artist live and let them
+        // retry the download from the KYC progress card.
+        toast("Terms accepted. Your agreement is ready in the KYC section.", "success");
       }
       onDone && onDone();
     } catch (e) {
