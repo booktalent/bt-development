@@ -49,6 +49,10 @@ async def _enrich(db, docs: list, clean) -> list:
 
 def make_router(*, db, clean, get_current_user_optional=None, **_extra) -> APIRouter:
     r = APIRouter()
+    # Homepage rails are public discovery surfaces.  Keep their eligibility in
+    # lockstep with /search/artists: an artist must have completed the full
+    # onboarding flow and must not be suspended before they can be surfaced.
+    public_artist_filter = {"suspended": {"$ne": True}, "kyc_status": "live"}
 
     async def _personal_rails(user_id: str, limit: int) -> list:
         """Sprint 5+ Smart Homepage — computed from user's search + booking history.
@@ -70,7 +74,7 @@ def make_router(*, db, clean, get_current_user_optional=None, **_extra) -> APIRo
             from collections import Counter
             top_city = Counter(cities).most_common(1)[0][0]
         if top_city:
-            docs = await db.artist_profiles.find({"city": {"$regex": f"^{top_city}$", "$options": "i"}}).sort([("plan_rank", -1), ("rating_avg", -1)]).limit(limit).to_list(limit)
+            docs = await db.artist_profiles.find({**public_artist_filter, "city": {"$regex": f"^{top_city}$", "$options": "i"}}).sort([("plan_rank", -1), ("rating_avg", -1)]).limit(limit).to_list(limit)
             items = await _enrich(db, docs, clean)
             if items:
                 out.append({"code": "continue_in_city", "title": f"📍 Continue Browsing in {top_city}",
@@ -85,7 +89,7 @@ def make_router(*, db, clean, get_current_user_optional=None, **_extra) -> APIRo
             from collections import Counter
             top_cat = Counter(categories).most_common(1)[0][0]
         if top_cat:
-            docs = await db.artist_profiles.find({"category": top_cat}).sort([("plan_rank", -1), ("rating_avg", -1)]).limit(limit).to_list(limit)
+            docs = await db.artist_profiles.find({**public_artist_filter, "category": top_cat}).sort([("plan_rank", -1), ("rating_avg", -1)]).limit(limit).to_list(limit)
             items = await _enrich(db, docs, clean)
             if items:
                 out.append({"code": "because_you_searched", "title": f"🎯 Because you searched {top_cat}",
@@ -96,7 +100,7 @@ def make_router(*, db, clean, get_current_user_optional=None, **_extra) -> APIRo
         bookings = await db.bookings.find({"customer_id": user_id}).sort("created_at", -1).limit(10).to_list(10)
         artist_ids = list({b.get("artist_id") for b in bookings if b.get("artist_id")})
         if artist_ids:
-            docs = await db.artist_profiles.find({"user_id": {"$in": artist_ids}}).limit(limit).to_list(limit)
+            docs = await db.artist_profiles.find({**public_artist_filter, "user_id": {"$in": artist_ids}}).limit(limit).to_list(limit)
             items = await _enrich(db, docs, clean)
             if items:
                 out.append({"code": "rebook", "title": "🔁 Book Them Again",
@@ -122,7 +126,7 @@ def make_router(*, db, clean, get_current_user_optional=None, **_extra) -> APIRo
             rails.extend(personal)
 
         # 1. Featured
-        cur = db.artist_profiles.find({"$or": [{"is_featured": True}, {"is_boosted": True}]}).sort("rating_avg", -1).limit(limit)
+        cur = db.artist_profiles.find({**public_artist_filter, "$or": [{"is_featured": True}, {"is_boosted": True}]}).sort("rating_avg", -1).limit(limit)
         items = await _enrich(db, await cur.to_list(limit), clean)
         rails.append({"code": "featured", "title": "✨ Featured Artists", "subtitle": "Hand-picked by BookTalent", "items": items})
 
@@ -137,7 +141,7 @@ def make_router(*, db, clean, get_current_user_optional=None, **_extra) -> APIRo
         rows = await db.bookings.aggregate(pipe).to_list(limit)
         artist_ids = [r["_id"] for r in rows if r.get("_id")]
         if artist_ids:
-            docs = await db.artist_profiles.find({"user_id": {"$in": artist_ids}}).to_list(limit)
+            docs = await db.artist_profiles.find({**public_artist_filter, "user_id": {"$in": artist_ids}}).to_list(limit)
             # preserve trending order
             by_id = {d["user_id"]: d for d in docs}
             ordered = [by_id[a] for a in artist_ids if a in by_id]
@@ -147,31 +151,31 @@ def make_router(*, db, clean, get_current_user_optional=None, **_extra) -> APIRo
         rails.append({"code": "trending", "title": "🔥 Trending This Month", "subtitle": "Most booked in the last 30 days", "items": items})
 
         # 3. Elite plan artists
-        cur = db.artist_profiles.find({"plan_code": "elite"}).sort("rating_avg", -1).limit(limit)
+        cur = db.artist_profiles.find({**public_artist_filter, "plan_code": "elite"}).sort("rating_avg", -1).limit(limit)
         items = await _enrich(db, await cur.to_list(limit), clean)
         if items:
             rails.append({"code": "elite", "title": "💎 Elite Artists", "subtitle": "Our top-tier performers", "items": items})
 
         # 4. New Talent — created in last 60 days
         cutoff2 = (datetime.now(timezone.utc) - timedelta(days=60)).isoformat()
-        cur = db.artist_profiles.find({"created_at": {"$gte": cutoff2}}).sort("created_at", -1).limit(limit)
+        cur = db.artist_profiles.find({**public_artist_filter, "created_at": {"$gte": cutoff2}}).sort("created_at", -1).limit(limit)
         items = await _enrich(db, await cur.to_list(limit), clean)
         if items:
             rails.append({"code": "new_talent", "title": "🌟 New Talent", "subtitle": "Fresh faces just joined", "items": items})
 
         # 5. Top Rated
-        cur = db.artist_profiles.find({"rating_avg": {"$gte": 4.5}}).sort([("rating_avg", -1), ("review_count", -1)]).limit(limit)
+        cur = db.artist_profiles.find({**public_artist_filter, "rating_avg": {"$gte": 4.5}}).sort([("rating_avg", -1), ("review_count", -1)]).limit(limit)
         items = await _enrich(db, await cur.to_list(limit), clean)
         rails.append({"code": "top_rated", "title": "⭐ Top Rated", "subtitle": "Rated 4.5+ by real customers", "items": items})
 
         # 6. Fastest Response
-        cur = db.artist_profiles.find({"plan_code": {"$in": ["platinum", "elite"]}}).sort("plan_rank", -1).limit(limit)
+        cur = db.artist_profiles.find({**public_artist_filter, "plan_code": {"$in": ["platinum", "elite"]}}).sort("plan_rank", -1).limit(limit)
         items = await _enrich(db, await cur.to_list(limit), clean)
         if items:
             rails.append({"code": "fastest_response", "title": "⚡ Fastest Response", "subtitle": "Reply within 2-6 hours", "items": items})
 
         # 7. Best Value — good rating + lower price
-        docs = await db.artist_profiles.find({"rating_avg": {"$gte": 4.0}}).sort("rating_avg", -1).limit(50).to_list(50)
+        docs = await db.artist_profiles.find({**public_artist_filter, "rating_avg": {"$gte": 4.0}}).sort("rating_avg", -1).limit(50).to_list(50)
         enriched = await _enrich(db, docs, clean)
         enriched.sort(key=lambda x: x.get("starting_price") or 1e9)
         items = enriched[:limit]
@@ -179,7 +183,7 @@ def make_router(*, db, clean, get_current_user_optional=None, **_extra) -> APIRo
 
         # 8. Best in your city
         if city:
-            cur = db.artist_profiles.find({"city": {"$regex": f"^{city}$", "$options": "i"}}).sort("rating_avg", -1).limit(limit)
+            cur = db.artist_profiles.find({**public_artist_filter, "city": {"$regex": f"^{city}$", "$options": "i"}}).sort("rating_avg", -1).limit(limit)
             items = await _enrich(db, await cur.to_list(limit), clean)
             if items:
                 rails.append({"code": f"city_{city.lower()}", "title": f"📍 Best in {city}", "subtitle": f"Top-rated artists near you", "items": items})
@@ -190,7 +194,7 @@ def make_router(*, db, clean, get_current_user_optional=None, **_extra) -> APIRo
             ("DJ / Music Producer", "DJs", "🎧"),
             ("Dancer", "Dancers", "💃"),
         ]:
-            cur = db.artist_profiles.find({"category": slug}).sort([("plan_rank", -1), ("rating_avg", -1)]).limit(limit)
+            cur = db.artist_profiles.find({**public_artist_filter, "category": slug}).sort([("plan_rank", -1), ("rating_avg", -1)]).limit(limit)
             items = await _enrich(db, await cur.to_list(limit), clean)
             if items:
                 rails.append({"code": f"cat_{_slug(slug)}", "title": f"{icon} Top {title}", "subtitle": f"India's leading {title.lower()}", "items": items})
@@ -218,7 +222,7 @@ def make_router(*, db, clean, get_current_user_optional=None, **_extra) -> APIRo
         }).sort("created_at", -1).limit(6).to_list(6)
         boost_ids = [s["artist_id"] for s in subs if s.get("artist_id")]
         if boost_ids:
-            docs = await db.artist_profiles.find({"user_id": {"$in": boost_ids}}).to_list(len(boost_ids))
+            docs = await db.artist_profiles.find({**public_artist_filter, "user_id": {"$in": boost_ids}}).to_list(len(boost_ids))
             by_id = {d["user_id"]: d for d in docs}
             for aid in boost_ids:
                 if aid in by_id and aid not in seen:
@@ -229,7 +233,7 @@ def make_router(*, db, clean, get_current_user_optional=None, **_extra) -> APIRo
         # 2. Fill with featured artists if fewer than 3 spotlight buyers.
         if len(cards) < 3:
             fill = await db.artist_profiles.find({
-                "is_featured": True, "user_id": {"$nin": list(seen) or [""]}
+                **public_artist_filter, "is_featured": True, "user_id": {"$nin": list(seen) or [""]}
             }).sort("rating_avg", -1).limit(3 - len(cards)).to_list(3)
             for d in fill:
                 if d["user_id"] not in seen:
@@ -240,7 +244,7 @@ def make_router(*, db, clean, get_current_user_optional=None, **_extra) -> APIRo
         # 3. Fallback: top-rated overall
         if len(cards) < 3:
             fill = await db.artist_profiles.find({
-                "user_id": {"$nin": list(seen) or [""]}
+                **public_artist_filter, "user_id": {"$nin": list(seen) or [""]}
             }).sort([("rating_avg", -1), ("review_count", -1)]).limit(3 - len(cards)).to_list(3)
             for d in fill:
                 if d["user_id"] not in seen:
@@ -317,7 +321,7 @@ def make_router(*, db, clean, get_current_user_optional=None, **_extra) -> APIRo
         """Returns artist counts per category, optionally scoped to a city.
         The frontend uses this to highlight categories that are strongest in
         the visitor's city so the Categories grid feels local."""
-        query = {}
+        query = dict(public_artist_filter)
         if city:
             query["city"] = {"$regex": f"^{re.escape(city)}$", "$options": "i"}
         pipeline = [
