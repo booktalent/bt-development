@@ -2291,7 +2291,16 @@ async def create_booking(body: BookingCreate, user: dict = Depends(get_current_u
             # Surface coupon error to the customer instead of silently dropping
             raise ce
 
-    pricing = calc_booking_pricing(float(pkg["price"]), addon_total, coupon_discount)
+    # Keep customer checkout, booking snapshots, and gateway payments on the
+    # same canonical pricing calculation.
+    from financial_engine import compute_price
+    pricing = await compute_price(
+        db,
+        artist_id=body.artist_id,
+        package_fee=float(pkg["price"]),
+        addons_total=addon_total,
+        coupon_discount=coupon_discount,
+    )
 
     # Iter 44 — Resolve or generate the event umbrella. If the customer passed
     # an event_id we validate they already own another booking under it; else

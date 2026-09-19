@@ -341,9 +341,10 @@ export default function BookingFlow() {
   const gstPercent = quoteMeta?.gst_percent ?? 18;
   const feePercent = quoteMeta?.platform_fee_percent ?? 5;
   const gstVisible = quoteMeta ? !!quoteMeta.gst_visible : true;
-  // "Amount payable to BookTalent" = net platform fee + GST + add-ons GST.
-  // Artist Performance Fee is settled directly customer↔artist, not through us.
-  const total = platformFeeNet + gst;                    // BookTalent-collected amount
+  // The gateway collects the full booking total. The BookTalent fee is shown
+  // separately because the artist fee remains a settlement-side amount.
+  const booktalentAmount = platformFeeNet + gst;
+  const total = quoteMeta?.total ?? (platformFeeNet + gst);
   const token = total;                                   // legacy alias
   const subtotal = artistFee;                            // legacy alias for display blocks
 
@@ -1040,7 +1041,7 @@ export default function BookingFlow() {
                 </div>
                 <div className="flex justify-between mb-12">
                   <span className="fw-700">Amount Payable to BookTalent</span>
-                  <span className="fw-700 text-gold font-serif fs-18" data-testid="bt-amount">{fmtINRFull(total)}</span>
+                  <span className="fw-700 text-gold font-serif fs-18" data-testid="bt-amount">{fmtINRFull(booktalentAmount)}</span>
                 </div>
                 <div style={{ background: "var(--gold-dim)", padding: 14, borderRadius: 10 }}>
                   <div className="text-muted fs-11 mb-4">🔐 Pay Now to BookTalent</div>

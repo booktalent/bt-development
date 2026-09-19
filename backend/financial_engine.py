@@ -85,7 +85,15 @@ async def compute_price(
 
     taxable = _q(artist_fee + platform_fee_net)
     gst_amount = _q(taxable * gst_pct / 100) if gst_pct > 0 else 0.0
-    total = _q(taxable + gst_amount)
+    # Normal artists: the first gateway payment covers BookTalent's platform
+    # fee and GST; the artist fee is settled directly with the artist for now.
+    # Service artists: BookTalent collects the artist fee because the platform
+    # fee is waived and the booking is managed by BookTalent.
+    total = _q(
+        artist_fee + gst_amount
+        if commercial["is_service"]
+        else platform_fee_net + gst_amount
+    )
 
     booktalent_commission = _q(artist_fee * commercial["percentage_deal"] / 100)
     artist_payable = _q(artist_fee - booktalent_commission)
@@ -106,6 +114,10 @@ async def compute_price(
         "gst_visible": gst_pct > 0,                # UI: hide GST rows when 0
         "coupon_discount": _q(coupon_discount),
         "total": total,
+        # Legacy booking/payment consumers use token_amount as the amount
+        # sent to the gateway. Keep it aligned with the canonical total.
+        "token_amount": total,
+        "balance_due": 0.0,
         # settlement-side (admin/artist dashboards use these; safe to return
         # to the customer too since amounts are their own money)
         "booktalent_percentage": commercial["percentage_deal"],

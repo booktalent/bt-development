@@ -43,7 +43,7 @@ export default function PaymentStep({
     <div className="card card-pad" data-testid="step-5">
       <h2 className="font-serif fs-20 fw-700 mb-8">Secure Payment</h2>
       <p className="text-muted fs-13 mb-20">
-        Pay your 5% booking token to confirm{isMultiEvent ? ` · ${cartItems.length} artists in this event` : ""}.
+        Pay the full booking total to confirm{isMultiEvent ? ` · ${cartItems.length} artists in this event` : ""}.
       </p>
 
       <div style={{

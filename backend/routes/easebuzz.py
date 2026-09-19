@@ -35,6 +35,7 @@ from easebuzz_service import (
     initiate_link, retrieve_txn, refund_txn, normalise_amount,
     default_settings_document,
 )
+from financial_engine import compute_price
 
 log = logging.getLogger(__name__)
 
@@ -494,6 +495,28 @@ def make_easebuzz_router(*, db, get_current_user, admin_only, new_id, utcnow,
                 raise HTTPException(403, "Not your booking")
             if d.get("status") != "pending_payment":
                 raise HTTPException(400, f"Booking {d.get('ref', d['id'])} is not awaiting payment")
+
+        # Reconcile pending bookings created by the legacy pricing calculator
+        # before sending the amount to Easebuzz. This also keeps an existing
+        # unpaid booking correct after the pricing model changed.
+        for d in docs:
+            old_pricing = d.get("pricing") or {}
+            if "package_fee" not in old_pricing:
+                continue
+            canonical = await compute_price(
+                db,
+                artist_id=d.get("artist_id"),
+                package_fee=float(old_pricing.get("package_fee") or 0),
+                addons_total=float(old_pricing.get("addons_total") or 0),
+                coupon_discount=float(old_pricing.get("coupon_discount") or 0),
+            )
+            canonical["package_fee"] = float(old_pricing.get("package_fee") or 0)
+            canonical["addons_total"] = float(old_pricing.get("addons_total") or 0)
+            d["pricing"] = canonical
+            await db.bookings.update_one(
+                {"id": d["id"], "status": "pending_payment"},
+                {"$set": {"pricing": canonical}},
+            )
 
         cfg = await _active_env(db)
         total = round(sum(float((d.get("pricing") or {}).get("token_amount", 0) or 0) for d in docs), 2)
