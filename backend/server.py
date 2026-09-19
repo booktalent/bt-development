@@ -1508,7 +1508,11 @@ async def _authorize_media_access(doc: dict, request: Request) -> None:
     # as get_current_user but without raising for missing header up-front so
     # we can differentiate 401 vs 403.
     auth = request.headers.get("Authorization") or ""
-    token = auth[7:].strip() if auth.lower().startswith("bearer ") else ""
+    token = (
+        auth[7:].strip()
+        if auth.lower().startswith("bearer ")
+        else request.cookies.get(_COOKIE_NAME)
+    )
     if not token:
         raise HTTPException(401, "Authentication required for this asset.")
     try:

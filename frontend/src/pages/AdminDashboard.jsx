@@ -363,6 +363,7 @@ function AdminKYC({ toast }) {
   const [list, setList] = useState([]);
   const [status, setStatus] = useState("pending");
   const [expanded, setExpanded] = useState(null);
+  const [documentViewer, setDocumentViewer] = useState(null);
   const [approveState, setApproveState] = useState(null); // { artist_id, name }
   const reload = () => api.get(`/admin/kyc?status=${status}`).then((r) => setList(r.data)).catch(() => setList([]));
   // `reload` is a new closure every render — including it triggers infinite fetch.
@@ -470,9 +471,14 @@ function AdminKYC({ toast }) {
                   {Object.entries(k.documents).map(([field, mid]) => (
                     <div key={field} className="card card-pad" style={{ textAlign: "center" }}>
                       <div className="text-muted fs-11 mb-4" style={{ marginBottom: 4 }}>{field.toUpperCase()}</div>
-                      <a href={`${api.defaults.baseURL}/media/${mid}`} target="_blank" rel="noreferrer" data-testid={`kyc-doc-${k.user_id}-${field}`}>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => setDocumentViewer({ id: mid, field, artist: (k.user?.first_name || "") + " " + (k.user?.last_name || "") })}
+                        data-testid={"kyc-doc-" + k.user_id + "-" + field}
+                      >
                         <img src={`${api.defaults.baseURL}/media/${mid}/thumb`} alt={field} style={{ maxWidth: "100%", borderRadius: 8 }} onError={(e) => { e.target.style.display = "none"; e.target.parentElement.innerHTML += '<div style="font-size:48px">📄</div>'; }} />
-                      </a>
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -496,10 +502,57 @@ function AdminKYC({ toast }) {
           }}
         />
       )}
+      {documentViewer && (
+        <KycDocumentViewer document={documentViewer} onClose={() => setDocumentViewer(null)} />
+      )}
     </div>
   );
 }
 
+function KycDocumentViewer({ document, onClose }) {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [asset, setAsset] = useState(null);
+
+  useEffect(() => {
+    let objectUrl = null;
+    api.get("/media/" + document.id, { responseType: "blob" })
+      .then((response) => {
+        objectUrl = URL.createObjectURL(response.data);
+        setAsset({ url: objectUrl, mime: response.headers["content-type"] || response.data.type || "" });
+      })
+      .catch(() => setError("This document could not be loaded. Please refresh and try again."))
+      .finally(() => setLoading(false));
+    return () => { if (objectUrl) URL.revokeObjectURL(objectUrl); };
+  }, [document.id]);
+
+  const isPdf = asset?.mime.toLowerCase().includes("pdf");
+  return (
+    <div className="modal-bg" onClick={onClose} data-testid="kyc-document-viewer">
+      <div className="modal-card" style={{ width: "min(920px, 94vw)", maxHeight: "92vh", overflow: "auto" }} onClick={(e) => e.stopPropagation()}>
+        <div className="flex justify-between items-center mb-16">
+          <div>
+            <div className="font-serif fs-20 fw-700">{document.field.toUpperCase()} document</div>
+            {document.artist.trim() && <div className="text-muted fs-12">{document.artist.trim()}</div>}
+          </div>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={onClose}>Close</button>
+        </div>
+        {loading && <div className="empty"><div className="empty-title">Loading document…</div></div>}
+        {error && <div className="empty"><div className="empty-title">{error}</div></div>}
+        {asset && (isPdf ? (
+          <iframe title={document.field + " document"} src={asset.url} style={{ width: "100%", height: "68vh", border: 0, borderRadius: 8, background: "#fff" }} />
+        ) : (
+          <img src={asset.url} alt={document.field} style={{ display: "block", maxWidth: "100%", maxHeight: "68vh", margin: "0 auto", borderRadius: 8 }} />
+        ))}
+        {asset && (
+          <a className="btn btn-ghost btn-sm mt-12" href={asset.url} download={document.field + "-kyc-document"} data-testid="kyc-document-download">
+            Download document
+          </a>
+        )}
+      </div>
+    </div>
+  );
+}
 
 // ────────────────────────────────────────────────────────────────────────
 // KycApproveModal — captures artist_type ("normal" / "service") and, if
