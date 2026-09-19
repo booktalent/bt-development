@@ -1788,7 +1788,7 @@ async def boost_insights(user: dict = Depends(get_current_user)):
     # fall back to profile_views counter increments (zero'd per day).
     daily_views: Dict[str, int] = {d: 0 for d in day_keys}
     async for ev in db.analytics_events.find({
-        "user_id": user["id"], "event": "profile_view",
+        "artist_id": user["id"], "event": "profile_view",
         "created_at": {"$gte": (today - _td(days=13)).isoformat()},
     }, {"created_at": 1, "_id": 0}):
         try:
@@ -1985,8 +1985,6 @@ async def artist_detail(user_id: str):
     # T&C not accepted, agreement not generated) must 404 on the public URL.
     if prof.get("kyc_status") != "live":
         raise HTTPException(404, "Artist not found")
-    # increment view counter (best-effort)
-    await db.artist_profiles.update_one({"user_id": user_id}, {"$inc": {"profile_views": 1}})
     prof = clean(prof)
     user = await db.users.find_one({"id": user_id})
     packages = await db.packages.find({"artist_id": user_id}).sort("price", 1).to_list(50)
@@ -2001,6 +1999,42 @@ async def artist_detail(user_id: str):
         "reviews": [clean(r) for r in reviews],
         "availability": [clean(a) for a in availability],
     }
+
+
+@api.post("/artists/{user_id}/view")
+async def record_artist_profile_view(user_id: str, body: dict):
+    """Record one idempotent public profile view.
+
+    Fetching profile data must stay read-only: React development mode can run
+    effects twice, and retries/prefetches should never inflate view analytics.
+    The client supplies one token for a page visit; a unique event key makes
+    repeated calls with that token harmless.
+    """
+    view_token = str((body or {}).get("view_token") or "").strip()
+    if not view_token or len(view_token) > 128:
+        raise HTTPException(400, "A valid view token is required")
+    prof = await db.artist_profiles.find_one(
+        {"user_id": user_id, "suspended": {"$ne": True}, "kyc_status": "live"},
+        {"_id": 0, "user_id": 1},
+    )
+    if not prof:
+        raise HTTPException(404, "Artist not found")
+
+    event_id = "profile_view:" + user_id + ":" + view_token
+    result = await db.analytics_events.update_one(
+        {"_id": event_id},
+        {"$setOnInsert": {
+            "artist_id": user_id,
+            "event": "profile_view",
+            "created_at": utcnow(),
+        }},
+        upsert=True,
+    )
+    if result.upserted_id is not None:
+        await db.artist_profiles.update_one(
+            {"user_id": user_id}, {"$inc": {"profile_views": 1}},
+        )
+    return {"ok": True, "counted": result.upserted_id is not None}
 
 
 # ─────────────────────────────────────────────────────────────────────────────

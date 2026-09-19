@@ -11,6 +11,18 @@ import { useToast } from "../lib/toast";
 import { Heart, MessageCircle } from "lucide-react";
 
 const UUID_RX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// One token per artist per SPA visit. This survives React Strict Mode's
+// development-only effect replay while a browser refresh creates a new view.
+const profileViewTokens = new Map();
+
+function profileViewToken(artistId) {
+  if (!profileViewTokens.has(artistId)) {
+    const token = globalThis.crypto?.randomUUID?.()
+      || String(Date.now()) + "-" + Math.random().toString(36).slice(2);
+    profileViewTokens.set(artistId, token);
+  }
+  return profileViewTokens.get(artistId);
+}
 
 export default function ArtistProfile() {
   const { id } = useParams();
@@ -72,6 +84,10 @@ export default function ArtistProfile() {
       try {
         const r = await api.get(`/artists/${uid}`);
         setData(r.data);
+        // Counting is intentionally a separate idempotent event. Profile
+        // reads can be replayed by React Strict Mode or retried by a browser,
+        // but one actual SPA visit must count only once.
+        api.post(`/artists/${uid}/view`, { view_token: profileViewToken(uid) }).catch(() => {});
         const pop = r.data.packages.find((p) => p.is_popular) || r.data.packages[0];
         if (pop) setSelectedPkg(pop);
         // Iter 55 — Pull the artist's questionnaire answers so the About
